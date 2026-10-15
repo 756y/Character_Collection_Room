@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>角色收藏室｜角色卡管理</title>
+<style>
+:root{--bg:#f5f4f0;--panel:#fff;--ink:#292b31;--muted:#777b86;--line:#e7e4dc;--accent:#e58a42;--accent2:#fff0e2;--dark:#22242b;--good:#287a59;--shadow:0 12px 34px #2525250b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Noto Sans TC",sans-serif}button,input,textarea,select{font:inherit}button{cursor:pointer;border:0;border-radius:12px;padding:10px 15px;font-weight:700}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid #f4b16d;outline-offset:2px}.primary{background:var(--accent);color:#fff}.secondary{background:#f0eee8;color:var(--ink)}.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}.danger{background:#fff0ee;color:#b64235}.wrap{max-width:1280px;margin:auto;padding:24px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:28px}.brand{display:flex;gap:12px;align-items:center}.logo{width:46px;height:46px;border-radius:15px;background:var(--dark);color:#fff;display:grid;place-items:center;font-size:22px}.brand h1{font-size:20px;margin:0}.brand p{margin:4px 0 0;color:var(--muted);font-size:12px}.actions{display:flex;gap:8px;flex-wrap:wrap}.hero{background:var(--dark);color:#fff;border-radius:24px;padding:30px;display:grid;grid-template-columns:1.2fr .8fr;gap:20px;align-items:center;margin-bottom:22px;overflow:hidden;position:relative}.hero h2{font-size:clamp(24px,3vw,36px);line-height:1.2;margin:0 0 12px}.hero p{color:#d0d0d5;line-height:1.7;margin:0;max-width:660px}.hero .art{justify-self:end;font-size:95px;opacity:.92;filter:drop-shadow(0 10px 15px #0004)}.setup{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;margin-bottom:24px;box-shadow:var(--shadow)}.setup-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}.setup h3{margin:0;font-size:17px}.hint{font-size:12px;color:var(--muted);line-height:1.6}.setup-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.field{display:flex;flex-direction:column;gap:7px}.field label{font-size:13px;font-weight:750}.field input,.field textarea,.field select,.search{border:1px solid var(--line);border-radius:11px;padding:11px 12px;background:#fff;color:var(--ink);width:100%;min-width:0}.field textarea{min-height:95px;resize:vertical}.field small{color:var(--muted);font-size:11px;line-height:1.5}.setup-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px}.status{font-size:12px;color:var(--muted)}.status strong{color:var(--good)}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:14px;margin:24px 0 16px;flex-wrap:wrap}.toolbar h2{margin:0;font-size:22px}.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.search{width:min(280px,70vw)}.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}.chip{padding:7px 12px;border-radius:999px;background:#ebe9e2;color:#6c6b67;font-size:12px;border:1px solid transparent}.chip.active{background:var(--accent2);color:#9b531d;border-color:#f4d0af}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:var(--shadow);transition:transform .15s,box-shadow .15s;min-width:0}.card:hover{transform:translateY(-3px);box-shadow:0 16px 38px #25252512}.cover{height:220px;background:linear-gradient(135deg,#e9e2d6,#d3d4d1);position:relative;display:grid;place-items:center;overflow:hidden}.cover img{width:100%;height:100%;object-fit:cover}.cover .placeholder{font-size:52px;opacity:.65}.cover .tagline{position:absolute;left:12px;top:12px;background:#22242bce;color:#fff;border-radius:999px;padding:5px 9px;font-size:10px}.card-body{padding:15px}.card h3{margin:0 0 5px;font-size:17px;overflow-wrap:anywhere}.sub{color:var(--muted);font-size:12px;margin-bottom:12px}.badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}.badge{font-size:11px;border-radius:7px;background:#f0eee8;color:#6b685f;padding:5px 7px}.desc{color:#696b73;font-size:12px;line-height:1.6;min-height:38px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.card-foot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);margin-top:14px;padding-top:12px;gap:8px}.tiny{font-size:11px;color:var(--muted)}.icon-btn{background:transparent;padding:6px 8px;color:#777;border:1px solid var(--line)}.empty{border:1px dashed #d5d1c6;border-radius:20px;text-align:center;padding:50px 20px;background:#ffffff80}.empty .emoji{font-size:48px}.empty h3{margin:12px 0 6px}.empty p{color:var(--muted);max-width:470px;margin:0 auto 18px;line-height:1.7;font-size:13px}.notice{border-radius:12px;padding:11px 13px;background:#fff7e9;color:#875a27;font-size:12px;line-height:1.6;margin-top:12px}.modal-backdrop{position:fixed;inset:0;background:#1d1d24a8;display:none;align-items:center;justify-content:center;padding:18px;z-index:20}.modal-backdrop.open{display:flex}.modal{width:min(820px,100%);max-height:92vh;overflow:auto;background:var(--panel);border-radius:22px;padding:22px;box-shadow:0 30px 100px #0003}.modal-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:18px}.modal-head h2{font-size:21px;margin:0}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}.full{grid-column:1/-1}.modal-actions{display:flex;justify-content:space-between;gap:8px;margin-top:20px;flex-wrap:wrap}.modal-actions .right{display:flex;gap:8px}.detail{display:grid;grid-template-columns:260px 1fr;gap:20px}.detail-cover{border-radius:15px;overflow:hidden;background:#eee5d8;min-height:290px;display:grid;place-items:center}.detail-cover img{width:100%;height:100%;object-fit:cover}.detail h2{margin:0 0 6px}.detail p{line-height:1.7;color:#626570;white-space:pre-wrap}.stats{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.stat{background:#f5f2eb;border-radius:10px;padding:9px 12px;font-size:12px}.stat strong{display:block;font-size:16px;margin-top:4px}.footer-note{text-align:center;color:#9a9a9a;font-size:11px;margin:35px 0 12px}.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#25262c;color:#fff;padding:12px 18px;border-radius:12px;box-shadow:0 8px 30px #0003;z-index:50;max-width:90vw;font-size:13px;display:none}.toast.show{display:block}.file-label{display:inline-flex;align-items:center;gap:7px}.hidden{display:none!important}
+@media(max-width:980px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.hero{grid-template-columns:1fr .3fr}.hero .art{font-size:65px}}
+@media(max-width:700px){.wrap{padding:15px}.topbar{align-items:flex-start}.brand p{max-width:210px}.hero{padding:22px;grid-template-columns:1fr}.hero .art{display:none}.setup-grid,.form-grid,.detail{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.cover{height:180px}.toolbar{align-items:flex-start}.search{width:100%}.tools{width:100%}.tools .search{flex:1}.detail-cover{min-height:240px}.full{grid-column:auto}}
+@media(max-width:420px){.grid{grid-template-columns:1fr}.cover{height:230px}.actions button{padding:9px 10px;font-size:12px}.topbar{flex-direction:column}.setup{padding:15px}}
+@media(max-width:640px){.wrap{padding:12px}.topbar{align-items:flex-start;gap:10px}.brand h1{font-size:20px}.actions button,.tools button,.modal-actions button{min-height:42px}.field input,.field textarea,.field select,.search{font-size:16px;min-height:42px}.modal{width:calc(100vw - 16px);max-height:92vh;padding:14px}.modal-head{position:sticky;top:0;background:var(--panel);z-index:2}.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.toolbar{align-items:stretch}.tools{width:100%}.tools .search{width:100%;max-width:none}.setup-footer{align-items:flex-start;gap:10px}}
+
+/* 介面更新：精簡頁首、柔和收藏卡片、編輯頁使用整頁版型 */
+.wrap{max-width:1380px;padding:18px 24px}.topbar{margin-bottom:18px}.logo{width:38px;height:38px;border-radius:12px;font-size:19px}.brand h1{font-size:18px}.brand p{font-size:11px}.toolbar{margin:18px 0 14px}.toolbar h2{font-size:20px}.card{border-radius:16px}.cover{height:230px}.card-body{padding:14px}.card h3{font-size:16px}.grid{gap:15px}.filters{margin-bottom:14px}.footer-note{margin:26px 0 8px}
+body.editor-mode{background:var(--bg)}body.editor-mode .wrap{display:none}body.editor-mode .modal-backdrop{display:block!important;position:static;inset:auto;background:transparent;padding:0;min-height:100vh;z-index:auto}body.editor-mode .modal{width:100%;max-width:1080px;min-height:100vh;max-height:none;overflow:visible;margin:0 auto;border-radius:0;padding:22px 24px;box-shadow:none;background:var(--bg)}body.editor-mode .modal-head{position:sticky;top:0;padding:12px 0;background:var(--bg);border-bottom:1px solid var(--line);z-index:5}body.editor-mode .modal-head h2{font-size:20px}body.editor-mode .modal-actions{position:sticky;bottom:0;background:var(--bg);padding:14px 0;border-top:1px solid var(--line);z-index:4}body.editor-mode .form-grid{gap:16px}body.editor-mode .field input,body.editor-mode .field textarea,body.editor-mode .field select{background:var(--panel)}body.editor-mode .modal-backdrop.open{display:block}
+@media(max-width:700px){.wrap{padding:12px}.topbar{align-items:center}.brand h1{font-size:17px}.brand p{display:none}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.cover{height:170px}.card-body{padding:11px}.card h3{font-size:15px}.card-foot{align-items:flex-start}.icon-btn{font-size:11px;padding:7px}body.editor-mode .modal{padding:12px 14px}body.editor-mode .modal-head{padding:10px 0}body.editor-mode .modal-actions{position:static}}
+@media(max-width:420px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.cover{height:150px}.actions button{padding:8px 10px}.brand .logo{width:34px;height:34px}}
+
+
+/* 導覽列與精簡角色卡：參考現代角色管理網站的清爽資訊層級 */
+.wrap{padding-top:0}.topbar{width:100vw;margin-left:calc(50% - 50vw);padding:13px max(24px,calc((100vw - 1332px)/2));background:#fff;border-bottom:1px solid var(--line);box-shadow:0 4px 18px #25252508;position:sticky;top:0;z-index:15;min-height:68px}.brand{gap:10px}.brand p{letter-spacing:.12em;color:#96959a}.actions{align-items:center}.settings-btn{width:42px;height:42px;padding:0;border:1px solid var(--line);background:#fff;border-radius:13px;font-size:19px;display:grid;place-items:center}.settings-btn:hover{background:#f7f4ee}.toolbar{margin-top:26px}.section-caption{margin:5px 0 0;color:var(--muted);font-size:12px}.card{box-shadow:0 5px 22px #25252509}.cover{cursor:pointer}.cover-favorite{position:absolute;right:10px;top:10px;width:34px;height:34px;border-radius:50%;padding:0;background:#ffffffdf;color:#c47735;font-size:18px;display:grid;place-items:center;box-shadow:0 2px 8px #0001}.card-body{padding:13px 14px 12px}.card .badges{margin:8px 0 0;min-height:24px}.card-foot{margin-top:11px;padding-top:10px}.form-section{border-bottom:1px solid var(--line);padding:8px 0 11px;margin-top:7px}.form-section h3{font-size:16px;margin:0 0 4px}.form-section p{font-size:12px;color:var(--muted);margin:0;line-height:1.6}.settings-panel{display:grid;gap:12px}.settings-row{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:16px;border:1px solid var(--line);border-radius:14px;background:#fff}.settings-row strong{font-size:14px}.settings-row p{margin:5px 0 0;color:var(--muted);font-size:12px;line-height:1.6}.settings-pill{font-size:11px;padding:6px 10px;border-radius:999px;background:#f3f0e9;color:#777;white-space:nowrap}
+@media(max-width:700px){.wrap{padding-top:0}.topbar{width:100vw;margin-left:calc(50% - 50vw);padding:10px 12px;min-height:60px}.settings-btn{width:40px;height:40px}.toolbar{margin-top:20px}.settings-row{align-items:flex-start;flex-direction:column}.settings-row button{width:100%}}
+
+
+/* 手機頁首固定單行：品牌、 新增角色、設定並排，不再被 420px 規則改成直向。 */
+@media(max-width:420px){
+ .topbar{flex-direction:row!important;align-items:center;justify-content:space-between;flex-wrap:nowrap;gap:8px}
+ .brand{flex:1 1 auto;min-width:0;gap:7px}
+ .brand .logo{flex:0 0 32px;width:32px;height:32px}
+ .brand h1{font-size:15px;white-space:nowrap}
+ .actions{flex:0 0 auto;flex-wrap:nowrap;gap:6px}
+ #addTop{white-space:nowrap;padding:8px 9px;font-size:12px;min-height:40px}
+ .settings-btn{flex:0 0 38px;width:38px;height:40px}
+}
+
+.image-carousel{position:relative;width:100%;height:100%;min-height:inherit;overflow:hidden;touch-action:pan-y;background:#eee5d8;display:grid;place-items:center}
+.image-carousel img{display:block;width:100%;height:100%;object-fit:contain}
+.image-carousel .carousel-nav{position:absolute;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:34px;height:34px;padding:0;border-radius:50%;background:#202127a8;color:white;font-size:20px;z-index:2}
+.image-carousel .carousel-prev{left:8px}.image-carousel .carousel-next{right:8px}
+.image-carousel .carousel-count{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);padding:4px 9px;border-radius:999px;background:#202127b8;color:#fff;font-size:11px;z-index:2;white-space:nowrap}
+.cover .image-carousel{position:absolute;inset:0}.cover .image-carousel img{object-fit:cover}
+.image-manager{position:relative;margin-top:10px;width:100%;max-width:none;aspect-ratio:16/9;height:auto;border-radius:14px;overflow:hidden;background:#eee5d8;border:1px solid var(--line);display:grid;place-items:center}
+.image-manager .image-carousel{position:absolute;inset:0}
+.image-manager .image-carousel img{object-fit:cover}
+.image-remove-current{position:absolute;right:10px;top:10px;z-index:4;background:#22242bd9;color:#fff;padding:7px 11px;border-radius:999px;font-size:12px}
+.image-help{font-size:11px;color:var(--muted);line-height:1.6}
+@media(max-width:420px){.image-carousel .carousel-nav{width:30px;height:30px}.image-manager{width:100%;max-width:none;height:auto;aspect-ratio:1/1}}
+
+
+/* 角色編輯頁：最上方只顯示一張圖片，透過左右滑動切換 */
+.image-editor-panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:18px;box-shadow:var(--shadow)}
+.image-editor-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.image-editor-heading strong{font-size:16px}.image-upload-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}.image-upload-button{display:inline-flex;align-items:center;justify-content:center;border-radius:12px;padding:10px 14px;font-size:13px;font-weight:700;white-space:nowrap;cursor:pointer}
+.image-help{font-size:11px;color:var(--muted);line-height:1.6}.image-editor-panel>.image-help{display:block;margin-top:10px}
+@media(max-width:760px){.image-manager{width:100%;max-width:none;aspect-ratio:1/1}}
+@media(max-width:560px){.image-editor-panel{padding:12px}.image-manager{width:100%;max-width:none;height:auto;aspect-ratio:1/1}}
+
+.setting-fold{border:1px solid var(--line);border-radius:12px;background:#fff;overflow:hidden}.setting-fold summary{cursor:pointer;list-style:none;padding:13px 15px;font-weight:750;font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:12px}.setting-fold summary::-webkit-details-marker{display:none}.setting-fold summary::after{content:'＋';color:var(--muted);font-size:16px}.setting-fold[open] summary::after{content:'－'}.setting-fold .field{padding:0 13px 13px}.setting-fold textarea{min-height:110px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div class="brand"><div class="logo">✦</div><div><h1>角色收藏室</h1><p>角色資料庫</p></div></div>
+    <div class="actions"><button class="primary" id="addTop">＋ 新增角色</button><button class="settings-btn" id="settingsBtn" type="button" aria-label="設定" title="設定">⚙️</button></div>
+  </header>
+  <div class="toolbar"><div><h2>我的角色 <span id="count" class="tiny">0 位</span></h2><p class="section-caption">整理、搜尋並管理你的 TRPG 角色</p></div><div class="tools"><input id="search" class="search" placeholder="搜尋角色、職業、標籤…" aria-label="搜尋角色"></div></div>
+  <div class="filters" id="filters"><button class="chip active" data-filter="all">全部角色</button><button class="chip" data-filter="favorite">★ 收藏</button><button class="chip" data-filter="COC">COC</button><button class="chip" data-filter="自訂">自訂角色</button></div>
+  <div id="gallery" class="grid"></div>
+  <div class="footer-note">角色收藏室 · 將重要角色好好保存</div>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="modal-head"><h2 id="modalTitle">角色頁面</h2><button class="ghost" id="closeModal">✕ 關閉</button></div><div id="modalContent"></div></div></div>
+<div class="toast" id="toast"></div>
+<script src="./SheetReader.js"></script>
+<script src="./PageFunctions.js"></script>
+<script>
+const STORAGE_KEY='character-gallery-v1';
+const PAGE_PARAMS=new URLSearchParams(location.search);
+const isEditorPage=PAGE_PARAMS.get('page')==='editor'||location.pathname.endsWith('/character.html');
+const editorTargetId=PAGE_PARAMS.get('id')||null;
+if(isEditorPage)document.body.classList.add('editor-mode');
+const IN_APPS_SCRIPT=!!(window.google&&google.script&&google.script.run);
+const DEFAULT_CHARACTER_ID='CHR-000001';
+const DEFAULT_CHARACTER_NAME='朝倉 森屋（あさくら もりや）';
+let characters=[];
+try{characters=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch(e){characters=[]}
+// 移除舊版本自動建立的預設角色；不影響使用者建立的其他角色。
+const isOldDefaultCharacter=c=>!!c&&c.name===DEFAULT_CHARACTER_NAME&&(c.seed===true||c.id===DEFAULT_CHARACTER_ID);
+const oldDefaultIds=characters.filter(isOldDefaultCharacter).map(c=>c.id).filter(Boolean);
+if(oldDefaultIds.length){characters=characters.filter(c=>!isOldDefaultCharacter(c));localStorage.setItem(STORAGE_KEY,JSON.stringify(characters))}
+let currentFilter='all', editingId=null, viewingId=null;
+const $=id=>document.getElementById(id);
+function saveLocal(){localStorage.setItem(STORAGE_KEY,JSON.stringify(characters))}
+function getCharacterCloudBridge(){try{if(window.__characterCloud)return window.__characterCloud;if(window.parent&&window.parent!==window&&window.parent.__characterCloud)return window.parent.__characterCloud;if(window.opener&&!window.opener.closed){if(window.opener.__characterCloud)return window.opener.__characterCloud;if(window.opener.parent&&window.opener.parent.__characterCloud)return window.opener.parent.__characterCloud}}catch(e){console.warn('無法存取雲端同步橋接',e)}return null}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function toast(msg){$('toast').textContent=msg;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),2800)}
+function tagsOf(c){return Array.isArray(c.tags)?c.tags: String(c.tags||'').split(/[,，、]/).map(x=>x.trim()).filter(Boolean)}
+function effectiveImages(c){
+ const list=Array.isArray(c?.images)?c.images:[];
+ return [...new Set([...list,c?.portraitUrl,c?.originalImageUrl].filter(x=>typeof x==='string'&&x.trim()))];
+}
+function effectiveImage(c){return effectiveImages(c)[0]||''}
+let imageIndexes={};
+function carouselMarkup(images,key,alt){
+ const list=Array.isArray(images)?images.filter(Boolean):[];
+ if(!list.length)return '<div class="placeholder">✦</div>';
+ const idx=((imageIndexes[key]||0)%list.length+list.length)%list.length;
+ return `<div class="image-carousel" data-carousel-key="${esc(key)}" data-carousel-count="${list.length}"><img src="${esc(list[idx])}" alt="${esc(alt||'角色圖片')}">${list.length>1?`<button type="button" class="carousel-nav carousel-prev" aria-label="上一張圖片" onclick="event.stopPropagation();changeCharacterImage('${esc(key)}',-1)">‹</button><button type="button" class="carousel-nav carousel-next" aria-label="下一張圖片" onclick="event.stopPropagation();changeCharacterImage('${esc(key)}',1)">›</button><span class="carousel-count">${idx+1} / ${list.length}</span>`:''}</div>`;
+}
+function changeCharacterImage(key,delta){
+ const node=Array.from(document.querySelectorAll('.image-carousel[data-carousel-key]')).find(n=>n.dataset.carouselKey===key);
+ const count=Number(node?.dataset.carouselCount||0);if(count<2)return;
+ imageIndexes[key]=(((imageIndexes[key]||0)+delta)%count+count)%count;
+ if(key==='editor')renderImageManager();else render();
+}
+function bindImageSwipe(){
+ document.querySelectorAll('.image-carousel[data-carousel-count]').forEach(el=>{
+  if(el.dataset.swipeBound==='1')return;el.dataset.swipeBound='1';
+  let startX=0,startY=0;
+  el.addEventListener('touchstart',e=>{const t=e.changedTouches[0];startX=t.clientX;startY=t.clientY;},{passive:true});
+  el.addEventListener('touchend',e=>{
+   if(Number(el.dataset.carouselCount)<2)return;
+   const t=e.changedTouches[0],dx=t.clientX-startX,dy=t.clientY-startY;
+   if(Math.abs(dx)>45&&Math.abs(dx)>Math.abs(dy)*1.25){e.preventDefault();e.stopPropagation();changeCharacterImage(el.dataset.carouselKey,dx<0?1:-1);}
+  },{passive:false});
+ });
+}
+function renderImageManager(){
+ const host=$('imageManager');if(!host)return;
+ const list=window._editingImages||[];
+ const idx=list.length?(((imageIndexes.editor||0)%list.length+list.length)%list.length):0;
+ imageIndexes.editor=idx;
+ host.innerHTML=list.length?`${carouselMarkup(list,'editor','角色圖片')}<button class="image-remove-current" type="button" onclick="removeCharacterImage(${idx})">移除這張圖片</button>`:'<div class="image-help">目前沒有圖片，請使用下方「上傳圖片」新增。</div>';
+ bindImageSwipe();
+}
+function removeCharacterImage(index){window._editingImages=(window._editingImages||[]).filter((_,i)=>i!==index);imageIndexes.editor=Math.max(0,Math.min(index,imageIndexes.editor||0));renderImageManager();toast('已移除圖片');}
+async function optimizeImageFile(file){
+ const dataUrl=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result));r.onerror=reject;r.readAsDataURL(file)});
+ return await new Promise(resolve=>{
+  const img=new Image();img.onload=()=>{
+   const max=1400,scale=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));
+   const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
+   const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,canvas.width,canvas.height);
+   const type=file.type==='image/png'?'image/png':'image/jpeg';
+   try{resolve(canvas.toDataURL(type,type==='image/jpeg'?0.86:undefined))}catch(_){resolve(dataUrl)}
+  };img.onerror=()=>resolve(dataUrl);img.src=dataUrl;
+ });
+}
+async function handleImageFiles(fileList){
+ const files=Array.from(fileList||[]).filter(f=>f.type.startsWith('image/'));
+ if(!files.length)return;
+ const current=window._editingImages||[];
+ if(current.length+files.length>10){toast('每位角色最多保留 10 張圖片');$('f_imageFiles').value='';return}
+ toast('正在處理圖片…');
+ try{for(const file of files)current.push(await optimizeImageFile(file));window._editingImages=current;renderImageManager();toast(`已新增 ${files.length} 張圖片`);}
+ catch(e){toast('圖片讀取失敗，請再試一次')}
+ const input=$('f_imageFiles');if(input)input.value='';
+}
+function render(){
+ const q=$('search').value.trim().toLowerCase();
+ const shown=characters.filter(c=>{
+  const hay=[c.name,c.alias,c.occupation,c.system,c.type,c.work,c.age,c.gender,c.player,c.nationality,c.description,c.backstory,c.personality,c.beliefs,c.importantPeople,c.importantPlaces,c.injuries,c.possessions,c.phobias,c.notes,...tagsOf(c),...Object.entries(c.attributes||{}).flat(),...Object.entries(c.skills||{}).flat()].join(' ').toLocaleLowerCase();
+  const match=!q||hay.includes(q);
+  const f=currentFilter==='all'||(currentFilter==='favorite'&&c.favorite)||(currentFilter==='COC'&&/coc|克蘇魯/i.test((c.system||'')+' '+(c.type||'')))||(currentFilter==='自訂'&& !/coc|克蘇魯/i.test((c.system||'')+' '+(c.type||'')));
+  return match&&f;
+ });
+ $('count').textContent=`${shown.length} 位`;
+ if(!shown.length){$('gallery').className='';$('gallery').innerHTML=`<div class="empty"><div class="emoji">🪄</div><h3>還沒有符合條件的角色</h3><p>新增一張角色卡，貼上來源網址後，可以先建立角色資料，再慢慢補齊設定。</p><button class="primary" onclick="openEditor()">＋ 新增第一位角色</button></div>`;return}
+ $('gallery').className='grid';
+ $('gallery').innerHTML=shown.map(c=>{
+  const imgs=effectiveImages(c), tags=tagsOf(c).slice(0,4);
+  return `<article class="card"><div class="cover">${carouselMarkup(imgs,'card:'+c.id,c.name)}<span class="tagline">${esc(c.system||c.type||'角色')}</span><button class="cover-favorite" title="${c.favorite?'取消收藏':'加入收藏'}" aria-label="${c.favorite?'取消收藏':'加入收藏'}" onclick="event.stopPropagation();toggleFavorite('${c.id}')">${c.favorite?'★':'☆'}</button></div><div class="card-body"><h3>${esc(c.name||'未命名角色')}${c.favorite?' <span style="color:#e58a42">★</span>':''}</h3><div class="sub">${esc(c.occupation||'尚未設定職業')}${c.age?' · '+esc(c.age)+' 歲':''}</div><div class="badges">${tags.map(t=>`<span class="badge">${esc(t)}</span>`).join('')}</div><div class="card-foot" style="justify-content:flex-end"><button class="icon-btn" title="編輯角色" onclick="openEditor('${c.id}')">編輯</button></div></div></article>`
+ }).join('');
+ bindImageSwipe();
+}
+function openModal(title,html){$('modalTitle').textContent=title;$('modalContent').innerHTML=html;$('modalBackdrop').classList.add('open')}
+function closeModal(){if(isEditorPage){cancelEditor();return}$('modalBackdrop').classList.remove('open');editingId=null;viewingId=null}
+function cancelEditor(){if(!isEditorPage){$('modalBackdrop').classList.remove('open');editingId=null;viewingId=null;return}if(window.opener&&!window.opener.closed){window.close();setTimeout(()=>{if(!window.closed)navigateToGallery()},150);return}navigateToGallery()}
+function navigateToGallery(){const target=new URL(location.href);target.pathname=target.pathname.replace(/character\.html$/,'index.html');target.searchParams.delete('page');target.searchParams.delete('id');target.hash='';location.replace(target.pathname+target.search+target.hash)}
+function openEditor(id){
+ if(!isEditorPage){
+  // 直接開啟正式角色頁 URL，不先開 blank；使用者點擊時同步呼叫，降低彈窗封鎖機率。
+  const target=new URL('./character.html',location.href);
+  if(id)target.searchParams.set('id',id);else target.searchParams.delete('id');
+  const editorWindow=window.open(target.toString(),'characterEditor');
+  if(!editorWindow){
+   // 瀏覽器仍封鎖新視窗時，改在目前分頁開啟真正的角色頁，而不是顯示空白頁。
+   location.assign(target.toString());
+  }
+  return;
+ }
+ editingId=id||null;
+ const c=(id?characters.find(x=>x.id===id):null)||{name:'',alias:'',work:'',type:'自訂角色',system:'',occupation:'',age:'',gender:'',player:'',nationality:'',portraitUrl:'',originalImageUrl:'',images:[],sourceUrl:'',description:'',backstory:'',personality:'',beliefs:'',importantPeople:'',importantPlaces:'',specialAbilities:'',injuries:'',possessions:'',phobias:'',tags:[],favorite:false,notes:'',attributes:{},skills:{}};
+ window._editingImages=effectiveImages(c).slice();
+ openModal('角色頁面',`
+ <section class="image-editor-panel"><div class="image-editor-heading"><div><strong>角色圖片</strong><div class="image-help">上方一次顯示一張；可左右滑動或按箭頭切換，最多 10 張。</div></div></div><div id="imageManager" class="image-manager"></div><div class="image-upload-row"><label class="image-upload-button secondary" for="f_imageFiles">＋ 上傳圖片（可多選）</label><input class="hidden" id="f_imageFiles" type="file" accept="image/*" multiple onchange="handleImageFiles(this.files)"></div></section>
+ <div class="field" style="margin-bottom:15px"><label>角色卡來源連結</label><input id="f_sourceUrl" value="${esc(c.sourceUrl)}" placeholder="貼上公開可讀的 Google 試算表角色卡連結"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="secondary" type="button" onclick="fetchCharacterLink()">↻ 讀取連結並自動填入</button><span id="fetchStatus" class="status" style="align-self:center">只讀取角色資料；圖片請在上方手動上傳</span></div><small>試算表連結只用來讀取角色文字資料；不會自動抓取試算表圖片。</small></div>
+ <div class="form-grid">
+ <div class="field"><label>角色名稱 *</label><input id="f_name" value="${esc(c.name)}" placeholder="角色姓名"></div>
+ <div class="field"><label>職業／身份</label><input id="f_occupation" value="${esc(c.occupation)}"></div>
+ <div class="field"><label>年齡</label><input id="f_age" value="${esc(c.age)}"></div><div class="field"><label>性別</label><input id="f_gender" value="${esc(c.gender)}"></div>
+ <div class="field"><label>玩家</label><input id="f_player" value="${esc(c.player)}"></div><div class="field"><label>國籍／出身</label><input id="f_nationality" value="${esc(c.nationality)}"></div>
+ <div class="field full"><label>Tag／標籤（用逗號分隔）</label><input id="f_tags" value="${esc(tagsOf(c).join(', '))}" placeholder="留空即可，不會自動加入標籤"></div>
+ <div class="form-section full"><h3>角色設定</h3><p>依照角色背景與內在特質整理，角色資料會依照相同順序整理。</p></div>
+ <details class="setting-fold full"><summary>形象描述</summary><div class="field"><label>形象描述</label><textarea id="f_description">${esc(c.description)}</textarea></div></details>
+ <details class="setting-fold full"><summary>性格特徵</summary><div class="field"><label>性格特徵</label><textarea id="f_personality">${esc(c.personality)}</textarea></div></details>
+ <details class="setting-fold full"><summary>思想／信念</summary><div class="field"><label>思想／信念</label><textarea id="f_beliefs">${esc(c.beliefs)}</textarea></div></details>
+ <details class="setting-fold full"><summary>傷勢及傷痕</summary><div class="field"><label>傷勢及傷痕</label><textarea id="f_injuries">${esc(c.injuries||'')}</textarea></div></details>
+ <details class="setting-fold full"><summary>重要之人及理由</summary><div class="field"><label>重要之人及理由</label><textarea id="f_importantPeople">${esc(c.importantPeople)}</textarea></div></details>
+ <details class="setting-fold full"><summary>恐懼症及狂躁症</summary><div class="field"><label>恐懼症及狂躁症</label><textarea id="f_phobias">${esc(c.phobias)}</textarea></div></details>
+ <details class="setting-fold full"><summary>異於常人的力量</summary><div class="field"><label>異於常人的力量</label><textarea id="f_specialAbilities">${esc(c.specialAbilities||'')}</textarea></div></details>
+ <details class="setting-fold full"><summary>寶貴之物</summary><div class="field"><label>寶貴之物</label><textarea id="f_possessions">${esc(c.possessions)}</textarea></div></details>
+ <details class="setting-fold full"><summary>生平故事</summary><div class="field"><label>生平故事</label><textarea id="f_backstory">${esc(c.backstory)}</textarea></div></details>
+ <div class="field full"><label>完整原始角色卡資料（JSON）</label><textarea id="f_rawCharacter" style="min-height:180px;font-family:ui-monospace,monospace;font-size:11px">${esc(c.rawCharacter?JSON.stringify(c.rawCharacter,null,2):'')}</textarea><small>抓到完整 JSON 時會保留未映射欄位；若是一般表格，會保留辨識到的標籤和值。</small></div>
+ <div class="field full"><label>系統／規則</label><input id="f_system" value="${esc(c.system)}" placeholder="例如：COC 7版"></div>
+ <div class="field full"><label>私人備註</label><textarea id="f_notes">${esc(c.notes)}</textarea><small>備註會隨角色資料一起保存。</small></div>
+ <div class="field full"><label><input type="checkbox" id="f_favorite" ${c.favorite?'checked':''} style="width:auto"> 加入收藏</label></div>
+ </div>
+ <div class="modal-actions"><div>${id?`<button class="danger" onclick="deleteCharacter('${id}')">刪除角色</button>`:''}</div><div class="right"><button class="secondary" onclick="cancelEditor()">取消</button><button class="primary" onclick="saveCharacter()">儲存角色</button></div></div>`);
+ renderImageManager();
+}
+function saveCharacter(){
+ const val=id=>document.getElementById('f_'+id)?.value||'';
+ const name=val('name').trim();if(!name){toast('請先填寫角色名稱');$('f_name').focus();return}
+ const old=editingId?characters.find(x=>x.id===editingId):null;
+ const c={...(old||{}),id:old?.id||('CHR-'+Date.now().toString().slice(-8)),name,alias:old?.alias||'',occupation:val('occupation'),system:val('system'),type:old?.type||'自訂角色',work:old?.work||'',age:val('age'),gender:val('gender'),player:val('player'),nationality:val('nationality'),sourceUrl:val('sourceUrl'),portraitUrl:'',originalImageUrl:'',images:(window._editingImages||[]).slice(),tags:val('tags').split(/[,，、]/).map(x=>x.trim()).filter(Boolean),description:val('description'),backstory:val('backstory'),personality:val('personality'),beliefs:val('beliefs'),importantPeople:val('importantPeople'),importantPlaces:old?.importantPlaces||'',specialAbilities:val('specialAbilities'),injuries:val('injuries'),possessions:val('possessions'),phobias:val('phobias'),notes:val('notes'),favorite:$('f_favorite').checked,attributes:old?.attributes||window._pendingFetchedCharacter?.attributes||{},skills:old?.skills||window._pendingFetchedCharacter?.skills||{},rawCharacter:(()=>{const t=val('rawCharacter').trim();if(t){try{return JSON.parse(t)}catch(e){toast('完整原始資料不是有效 JSON，已保留原本資料');return old?.rawCharacter||window._pendingFetchedCharacter?.rawCharacter||null}}return old?.rawCharacter||window._pendingFetchedCharacter?.rawCharacter||null})(),rawSourceCells:old?.rawSourceCells||window._pendingFetchedCharacter?.rawSourceCells||null,createdAt:old?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+ if(old){characters=characters.map(x=>x.id===old.id?c:x)}else{characters.unshift(c)}
+ saveLocal();window._pendingFetchedCharacter=null;if(isEditorPage){const savedMessage=old?'角色已更新':'角色已新增';toast(savedMessage);const syncPromise=syncIfConfigured('upsert',c);syncPromise.then(result=>{if(result?.ok){if(window.opener&&!window.opener.closed){window.close();setTimeout(()=>{if(!window.closed)navigateToGallery()},150)}else navigateToGallery()}else{toast('角色已保留在本機；雲端同步失敗，請修正問題後再儲存。')}});}else{closeModal();render();toast(old?'角色已更新':'角色已新增');syncIfConfigured('upsert',c);}
+}
+function deleteCharacter(id){if(!confirm('確定要刪除這張角色卡？此操作無法復原。'))return;characters=characters.filter(c=>c.id!==id);saveLocal();if(isEditorPage){toast('角色已刪除');syncIfConfigured('delete',{id}).catch(()=>{});setTimeout(()=>{if(window.opener&&!window.opener.closed){window.close();setTimeout(()=>{if(!window.closed)navigateToGallery()},150)}else navigateToGallery()},250);return}closeModal();render();toast('角色已刪除');syncIfConfigured('delete',{id})}
+function toggleFavorite(id){characters=characters.map(c=>c.id===id?{...c,favorite:!c.favorite,updatedAt:new Date().toISOString()}:c);saveLocal();render();syncIfConfigured('upsert',{id})}
+async function syncIfConfigured(action,payload){
+ if(IN_APPS_SCRIPT){
+  return new Promise(resolve=>{
+   google.script.run.withSuccessHandler(result=>{if(result&&result.ok){toast('已同步雲端');resolve(result)}else{toast('雲端儲存失敗：'+(result?.error||'請稍後重試'));resolve(result||{ok:false})}})
+    .withFailureHandler(err=>{toast('雲端儲存失敗：'+(err?.message||err));resolve({ok:false,error:err?.message||String(err)})}).syncCharactersFromApp(action,payload,characters);
+  });
+ }
+ const bridge=getCharacterCloudBridge();
+ if(!bridge){toast('雲端連線尚未就緒，請重新整理頁面後再試');return {ok:false,offline:true}}
+ try{
+  const result=await bridge.sync(action,payload,characters);
+  if(result?.ok){
+   if(result.character){characters=characters.map(item=>String(item.id)===String(result.id)?result.character:item);saveLocal();if(!isEditorPage)render();}
+   toast('已同步雲端');
+  }
+  return result;
+ }catch(error){toast('雲端同步失敗：'+(error?.message||String(error)));return {ok:false,error:error?.message||String(error)}}
+}
+function openEditorAfterLoad(){if(isEditorPage)openEditor(editorTargetId||undefined)}
+async function loadCloudCharacters(){
+ if(IN_APPS_SCRIPT){
+  google.script.run.withSuccessHandler(list=>{characters=(Array.isArray(list)?list:[]).filter(c=>!isOldDefaultCharacter(c));saveLocal();render();openEditorAfterLoad()})
+   .withFailureHandler(err=>{toast('載入角色失敗：'+(err?.message||err));openEditorAfterLoad()}).loadCharactersFromSheet();
+  return;
+ }
+ const bridge=getCharacterCloudBridge();
+ if(!bridge){setTimeout(loadCloudCharacters,250);return}
+ try{
+  const result=await bridge.migrate(characters);
+  characters=(Array.isArray(result?.characters)?result.characters:[]).filter(c=>!isOldDefaultCharacter(c));
+  saveLocal();render();
+  if(result?.migrated)toast(`已將本機的 ${result.count} 位角色匯入雲端`);
+ }catch(error){toast('雲端載入失敗：'+(error?.message||String(error)))}
+ openEditorAfterLoad();
+}
+
+function exportData(){
+ const blob=new Blob([JSON.stringify({exportedAt:new Date().toISOString(),characters},null,2)],{type:'application/json;charset=utf-8'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='角色收藏室_備份.json';a.click();URL.revokeObjectURL(a.href);toast('已匯出 JSON 備份');
+}
+function requestAccountLogout(){
+ const message={type:'CHARACTER_ROOM_LOGOUT'};
+ try{
+  if(window.parent&&window.parent!==window) window.parent.postMessage(message,location.origin);
+  else if(window.opener&&!window.opener.closed) window.opener.postMessage(message,location.origin);
+  else toast('目前頁面無法連結登入狀態，請回到收藏室首頁操作。');
+ }catch(error){toast('無法登出，請回到收藏室首頁再試。')}
+}
+function openSettings(){
+ openModal('設定',`<div class="settings-panel"><div class="settings-row"><div><strong>角色資料備份</strong><p>將目前這個瀏覽器儲存的角色資料匯出成 JSON 檔案。</p></div><button class="secondary" type="button" onclick="exportData();closeModal()">匯出備份</button></div><div class="settings-row"><div><strong>資料儲存方式</strong><p>目前角色資料儲存在此瀏覽器的本機儲存空間；清除瀏覽器資料前，建議先匯出備份。</p></div><span class="settings-pill">本機儲存</span></div><div class="settings-row"><div><strong>帳號</strong><p>登出目前登入的帳號，返回登入畫面。</p></div><button class="danger" type="button" onclick="requestAccountLogout()">登出帳號</button></div><div class="modal-actions"><div></div><div class="right"><button class="primary" onclick="closeModal()">完成</button></div></div></div>`);
+}
+function csvParse(text){
+ const out=[];let row=[],cell='',q=false;
+ for(let i=0;i<text.length;i++){const ch=text[i];if(ch==='"'){if(q&&text[i+1]==='"'){cell+='"';i++}else q=!q}else if(ch===','&&!q){row.push(cell);cell=''}else if((ch==='\n'||ch==='\r')&&!q){if(ch==='\r'&&text[i+1]==='\n')i++;row.push(cell);out.push(row);row=[];cell=''}else cell+=ch}
+ if(cell.length||row.length){row.push(cell);out.push(row)}return out;
+}
+function importFile(file){
+ const reader=new FileReader();reader.onload=()=>{
+  const txt=String(reader.result||'');let added=[];
+  try{
+   if(/\.json$/i.test(file.name)||txt.trim().startsWith('{')||txt.trim().startsWith('[')){
+    const parsed=JSON.parse(txt);const list=Array.isArray(parsed)?parsed:(parsed.characters||parsed.data||[]);
+    added=list.map((x,i)=>normalizeImported(x,i));
+   }else{
+    const rows=csvParse(txt);const header=(rows[0]||[]).map(x=>x.trim().toLowerCase());
+    // COC 人物卡 CSV 可能把完整 JSON 拆在相鄰儲存格；使用與 Google Sheets 連結相同的解析器。
+    const response={table:{rows:rows.map(r=>({c:r.map(v=>v===''?null:{v})}))}};
+    const raw=findFullJson(response);
+    if(raw){const mapped=mapCompleteCharacter(raw,'',response);added=[normalizeImported(mapped,0)];}
+    else{
+     const idx=(...names)=>header.findIndex(h=>names.some(n=>h===n||h.includes(n)));
+     const ni=idx('name','角色','姓名'),oi=idx('occupation','職業','職位'),ai=idx('age','年齡'),gi=idx('gender','性別'),si=idx('system','系統'),di=idx('description','簡介','背景'),pi=idx('portrait_url','image','img','圖片','封面');
+     if(ni>=0){added=rows.slice(1).filter(r=>r[ni]).map((r,i)=>normalizeImported({name:r[ni],occupation:oi>=0?r[oi]:'',age:ai>=0?r[ai]:'',gender:gi>=0?r[gi]:'',system:si>=0?r[si]:'',description:di>=0?r[di]:'',originalImageUrl:pi>=0?r[pi]:''},i))}
+     else throw new Error('這份 CSV 不是可辨識的角色卡格式，請確認檔案內容。');
+    }
+   }
+   added=added.filter(x=>x&&x.name);if(!added.length)throw new Error('找不到可匯入的角色');characters=[...added,...characters.filter(c=>!added.some(a=>a.name===c.name))];saveLocal();render();toast(`已匯入 ${added.length} 位角色，請檢查欄位是否正確`);syncIfConfigured('import',added);
+  }catch(e){toast('匯入失敗：請確認檔案是有效的 CSV 或 JSON')}
+ };reader.readAsText(file,'UTF-8');
+}
+function normalizeImported(x,i){return {...{id:'CHR-'+Date.now().toString().slice(-7)+i,name:'未命名角色',alias:'',work:'',type:'自訂角色',system:'',occupation:'',age:'',gender:'',player:'',nationality:'',portraitUrl:'',originalImageUrl:'',sourceUrl:'',description:'',backstory:'',personality:'',beliefs:'',importantPeople:'',importantPlaces:'',specialAbilities:'',injuries:'',possessions:'',phobias:'',attributes:{},skills:{},tags:[],favorite:false,notes:'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()},...x,id:x.id||('CHR-'+Date.now().toString().slice(-7)+i),tags:Array.isArray(x.tags)?x.tags:String(x.tags||'').split(/[,，、]/).map(t=>t.trim()).filter(Boolean)}}
+function setCurrentFilter(filter){
+ currentFilter=filter||'all';
+ document.querySelectorAll('#filters .chip').forEach(x=>x.classList.toggle('active',x.dataset.filter===currentFilter));
+ render();
+}
+window.addEventListener('storage',e=>{if(e.key===STORAGE_KEY&&!isEditorPage){try{characters=JSON.parse(e.newValue||'[]');render()}catch(_){}}});
+render();loadCloudCharacters();
+</script>
+</body>
+</html>
