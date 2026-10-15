@@ -172,7 +172,7 @@ export default function App() {
           <iframe
             className="collection-frame"
             title="角色收藏室"
-            src="/legacy/index.html"
+            src={`${import.meta.env.BASE_URL}legacy/index.html`}
             allow="clipboard-read; clipboard-write"
           />
         </section>
