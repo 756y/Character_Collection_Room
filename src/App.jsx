@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase, supabaseConfigured } from './lib/supabase'
-import { listCharacters, migrateLocalCharacters, syncCharacters } from './lib/characterCloud'
+import { listCharacters, syncCharacters } from './lib/characterCloud'
 
 export default function App() {
   const [session, setSession] = useState(null)
@@ -44,9 +44,9 @@ export default function App() {
       return
     }
     window.__characterCloud = {
+      email: session.user.email || '',
       list: () => listCharacters(),
       sync: (action, payload, currentCharacters) => syncCharacters(action, payload, currentCharacters),
-      migrate: (localCharacters) => migrateLocalCharacters(localCharacters),
     }
     return () => { try { delete window.__characterCloud } catch { window.__characterCloud = undefined } }
   }, [session?.user?.id])

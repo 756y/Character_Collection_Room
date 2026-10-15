@@ -87,7 +87,7 @@ body.editor-mode{background:var(--bg)}body.editor-mode .wrap{display:none}body.e
 <script src="./SheetReader.js"></script>
 <script src="./PageFunctions.js"></script>
 <script>
-const STORAGE_KEY='character-gallery-v1';
+// 角色資料只存在 Supabase；此頁不讀寫 localStorage。
 const PAGE_PARAMS=new URLSearchParams(location.search);
 const isEditorPage=PAGE_PARAMS.get('page')==='editor'||location.pathname.endsWith('/character.html');
 const editorTargetId=PAGE_PARAMS.get('id')||null;
@@ -96,15 +96,13 @@ const IN_APPS_SCRIPT=!!(window.google&&google.script&&google.script.run);
 const DEFAULT_CHARACTER_ID='CHR-000001';
 const DEFAULT_CHARACTER_NAME='朝倉 森屋（あさくら もりや）';
 let characters=[];
-try{characters=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch(e){characters=[]}
-// 移除舊版本自動建立的預設角色；不影響使用者建立的其他角色。
+// 不以瀏覽器本機資料作為角色來源；只有成功從目前登入者的雲端讀取後才填入清單。
 const isOldDefaultCharacter=c=>!!c&&c.name===DEFAULT_CHARACTER_NAME&&(c.seed===true||c.id===DEFAULT_CHARACTER_ID);
-const oldDefaultIds=characters.filter(isOldDefaultCharacter).map(c=>c.id).filter(Boolean);
-if(oldDefaultIds.length){characters=characters.filter(c=>!isOldDefaultCharacter(c));localStorage.setItem(STORAGE_KEY,JSON.stringify(characters))}
 let currentFilter='all', editingId=null, viewingId=null;
 const $=id=>document.getElementById(id);
-function saveLocal(){localStorage.setItem(STORAGE_KEY,JSON.stringify(characters))}
+function saveLocal(){ /* intentionally disabled: character data is cloud-only */ }
 function getCharacterCloudBridge(){try{if(window.__characterCloud)return window.__characterCloud;if(window.parent&&window.parent!==window&&window.parent.__characterCloud)return window.parent.__characterCloud;if(window.opener&&!window.opener.closed){if(window.opener.__characterCloud)return window.opener.__characterCloud;if(window.opener.parent&&window.opener.parent.__characterCloud)return window.opener.parent.__characterCloud}}catch(e){console.warn('無法存取雲端同步橋接',e)}return null}
+function getCurrentAccountEmail(){const bridge=getCharacterCloudBridge();return bridge&&typeof bridge.email==='string'&&bridge.email.trim()?bridge.email:'無法取得登入電子郵件'}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function toast(msg){$('toast').textContent=msg;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),2800)}
 function tagsOf(c){return Array.isArray(c.tags)?c.tags: String(c.tags||'').split(/[,，、]/).map(x=>x.trim()).filter(Boolean)}
@@ -114,14 +112,13 @@ function effectiveImages(c){
 }
 function effectiveImage(c){return effectiveImages(c)[0]||''}
 let imageIndexes={};
-const IMAGE_ARROW_SETTING_KEY='characterRoomShowImageArrows';
+let imageArrowPreference=null;
 function getImageArrowPreference(){
- const saved=localStorage.getItem(IMAGE_ARROW_SETTING_KEY);
- if(saved!==null)return saved==='true';
+ if(imageArrowPreference!==null)return imageArrowPreference;
  return !window.matchMedia('(max-width: 700px)').matches;
 }
 function setImageArrowPreference(enabled){
- localStorage.setItem(IMAGE_ARROW_SETTING_KEY,enabled?'true':'false');
+ imageArrowPreference=!!enabled;
  document.querySelectorAll('.image-carousel').forEach(el=>{
   el.querySelectorAll('.carousel-nav').forEach(btn=>btn.remove());
   const count=Number(el.dataset.carouselCount||0),key=el.dataset.carouselKey||'';
@@ -310,7 +307,7 @@ function saveCharacter(){
  const old=editingId?characters.find(x=>x.id===editingId):null;
  const c={...(old||{}),id:old?.id||('CHR-'+Date.now().toString().slice(-8)),name,alias:old?.alias||'',occupation:val('occupation'),system:val('system'),type:old?.type||'自訂角色',work:old?.work||'',age:val('age'),gender:val('gender'),player:val('player'),nationality:val('nationality'),sourceUrl:val('sourceUrl'),portraitUrl:'',originalImageUrl:'',images:(window._editingImages||[]).slice(),tags:val('tags').split(/[,，、]/).map(x=>x.trim()).filter(Boolean),description:val('description'),backstory:val('backstory'),personality:val('personality'),beliefs:val('beliefs'),importantPeople:val('importantPeople'),importantPlaces:old?.importantPlaces||'',specialAbilities:val('specialAbilities'),injuries:val('injuries'),possessions:val('possessions'),phobias:val('phobias'),notes:val('notes'),favorite:$('f_favorite').checked,attributes:old?.attributes||window._pendingFetchedCharacter?.attributes||{},skills:old?.skills||window._pendingFetchedCharacter?.skills||{},rawCharacter:(()=>{const t=val('rawCharacter').trim();if(t){try{return JSON.parse(t)}catch(e){toast('完整原始資料不是有效 JSON，已保留原本資料');return old?.rawCharacter||window._pendingFetchedCharacter?.rawCharacter||null}}return old?.rawCharacter||window._pendingFetchedCharacter?.rawCharacter||null})(),rawSourceCells:old?.rawSourceCells||window._pendingFetchedCharacter?.rawSourceCells||null,createdAt:old?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
  if(old){characters=characters.map(x=>x.id===old.id?c:x)}else{characters.unshift(c)}
- saveLocal();window._pendingFetchedCharacter=null;if(isEditorPage){const savedMessage=old?'角色已更新':'角色已新增';toast(savedMessage);const syncPromise=syncIfConfigured('upsert',c);syncPromise.then(result=>{if(result?.ok){if(window.opener&&!window.opener.closed){window.close();setTimeout(()=>{if(!window.closed)navigateToGallery()},150)}else navigateToGallery()}else{toast('角色已保留在本機；雲端同步失敗，請修正問題後再儲存。')}});}else{closeModal();render();toast(old?'角色已更新':'角色已新增');syncIfConfigured('upsert',c);}
+ saveLocal();window._pendingFetchedCharacter=null;if(isEditorPage){const savedMessage=old?'角色已更新':'角色已新增';toast(savedMessage);const syncPromise=syncIfConfigured('upsert',c);syncPromise.then(result=>{if(result?.ok){if(window.opener&&!window.opener.closed){window.close();setTimeout(()=>{if(!window.closed)navigateToGallery()},150)}else navigateToGallery()}else{toast('雲端儲存失敗，資料庫沒有確認成功；請查看錯誤訊息後重試。');loadCloudCharacters()}});}else{closeModal();render();toast(old?'角色已更新':'角色已新增');syncIfConfigured('upsert',c);}
 }
 function deleteCharacter(id){if(!confirm('確定要刪除這張角色卡？此操作無法復原。'))return;characters=characters.filter(c=>c.id!==id);saveLocal();if(isEditorPage){toast('角色已刪除');syncIfConfigured('delete',{id}).catch(()=>{});setTimeout(()=>{if(window.opener&&!window.opener.closed){window.close();setTimeout(()=>{if(!window.closed)navigateToGallery()},150)}else navigateToGallery()},250);return}closeModal();render();toast('角色已刪除');syncIfConfigured('delete',{id})}
 function toggleFavorite(id){characters=characters.map(c=>c.id===id?{...c,favorite:!c.favorite,updatedAt:new Date().toISOString()}:c);saveLocal();render();syncIfConfigured('upsert',{id})}
@@ -322,31 +319,53 @@ async function syncIfConfigured(action,payload){
   });
  }
  const bridge=getCharacterCloudBridge();
- if(!bridge){toast('雲端連線尚未就緒，請重新整理頁面後再試');return {ok:false,offline:true}}
+ if(!bridge){toast('雲端連線尚未就緒，資料沒有儲存；請重新整理頁面後再試。');setTimeout(()=>loadCloudCharacters(),0);return {ok:false,offline:true}}
  try{
   const result=await bridge.sync(action,payload,characters);
   if(result?.ok){
-   if(result.character){characters=characters.map(item=>String(item.id)===String(result.id)?result.character:item);saveLocal();if(!isEditorPage)render();}
+   if(result.character){
+    const exists=characters.some(item=>String(item.id)===String(result.id));
+    characters=exists?characters.map(item=>String(item.id)===String(result.id)?result.character:item):[result.character,...characters];
+    if(!isEditorPage)render();
+   }
+   if(!isEditorPage && action==='delete') await loadCloudCharacters();
    toast('已同步雲端');
   }
+  if(result && result.ok===false){
+   setTimeout(()=>loadCloudCharacters(),0);
+   return result;
+  }
   return result;
- }catch(error){toast('雲端同步失敗：'+(error?.message||String(error)));return {ok:false,error:error?.message||String(error)}}
+ }catch(error){
+  toast('雲端同步失敗：'+(error?.message||String(error)));
+  // 寫入失敗後重新向資料庫讀取，捨棄僅存在記憶體中的未保存變更。
+  setTimeout(()=>loadCloudCharacters(),0);
+  return {ok:false,error:error?.message||String(error)}
+ }
 }
 function openEditorAfterLoad(){if(isEditorPage)openEditor(editorTargetId||undefined)}
+window.addEventListener('focus',()=>{if(!isEditorPage && document.visibilityState==='visible' && getCharacterCloudBridge())loadCloudCharacters()});
 async function loadCloudCharacters(){
  if(IN_APPS_SCRIPT){
-  google.script.run.withSuccessHandler(list=>{characters=(Array.isArray(list)?list:[]).filter(c=>!isOldDefaultCharacter(c));saveLocal();render();openEditorAfterLoad()})
-   .withFailureHandler(err=>{toast('載入角色失敗：'+(err?.message||err));openEditorAfterLoad()}).loadCharactersFromSheet();
+  google.script.run.withSuccessHandler(list=>{characters=Array.isArray(list)?list:[];render();openEditorAfterLoad()})
+   .withFailureHandler(err=>{characters=[];render();toast('資料庫載入失敗：'+(err?.message||err));openEditorAfterLoad()}).loadCharactersFromSheet();
   return;
  }
  const bridge=getCharacterCloudBridge();
- if(!bridge){setTimeout(loadCloudCharacters,250);return}
+ if(!bridge){
+  characters=[];render();toast('雲端連線尚未就緒：請確認已登入且 Supabase 連線已建立，然後重新整理。');return;
+ }
  try{
-  const result=await bridge.migrate(characters);
-  characters=(Array.isArray(result?.characters)?result.characters:[]).filter(c=>!isOldDefaultCharacter(c));
-  saveLocal();render();
-  if(result?.migrated)toast(`已將本機的 ${result.count} 位角色匯入雲端`);
- }catch(error){toast('雲端載入失敗：'+(error?.message||String(error)))}
+  if(typeof bridge.list!=='function')throw new Error('目前網站的雲端橋接版本過舊，請重新部署 GitHub Pages。');
+  // 僅讀取目前登入帳號的資料；絕不把任何本機資料匯入資料庫。
+  const result=await bridge.list();
+  if(!Array.isArray(result))throw new Error('資料庫回傳格式不正確。');
+  characters=result;
+  render();
+  if(!result.length)toast('資料庫已成功連線，但這個登入帳號目前沒有角色資料。');
+ }catch(error){
+  characters=[];render();toast('資料庫載入失敗（未使用本機資料）：'+(error?.message||String(error)));return;
+ }
  openEditorAfterLoad();
 }
 
@@ -363,7 +382,7 @@ function requestAccountLogout(){
  }catch(error){toast('無法登出，請回到收藏室首頁再試。')}
 }
 function openSettings(){
- openModal('設定',`<div class="settings-panel"><div class="settings-row"><div><strong>角色資料備份</strong><p>將目前這個瀏覽器儲存的角色資料匯出成 JSON 檔案。</p></div><button class="secondary" type="button" onclick="exportData();closeModal()">匯出備份</button></div><div class="settings-row"><div><strong>資料儲存方式</strong><p>登入帳號後，角色資料會同步至雲端資料庫；本機也會保留暫存，方便介面讀取。</p></div><span class="settings-pill">雲端同步</span></div><div class="settings-row"><div><strong>圖片切換箭頭</strong><p>控制角色清單與角色頁面圖片兩側的切換箭頭。首次使用時，電腦版預設開啟、手機版預設關閉；手動調整後會記住你的選擇。</p></div><div class="arrow-setting-control"><label class="arrow-switch"><input id="showImageArrowsToggle" type="checkbox" onchange="setImageArrowPreference(this.checked)"><span class="arrow-switch-track"></span></label><span class="arrow-switch-label" id="showImageArrowsState">開啟</span></div></div><div class="settings-row"><div><strong>帳號</strong><p>登出目前登入的帳號，返回登入畫面。</p></div><button class="danger" type="button" onclick="requestAccountLogout()">登出帳號</button></div><div class="modal-actions"><div></div><div class="right"><button class="primary" onclick="closeModal()">完成</button></div></div></div>`);
+ openModal('設定',`<div class="settings-panel"><div class="settings-row"><div><strong>角色資料備份</strong><p>將目前這個瀏覽器儲存的角色資料匯出成 JSON 檔案。</p></div><button class="secondary" type="button" onclick="exportData();closeModal()">匯出備份</button></div><div class="settings-row"><div><strong>資料儲存方式</strong><p>角色資料只讀寫 Supabase 雲端資料庫，不會以瀏覽器本機儲存作為資料來源。</p></div><span class="settings-pill">雲端同步</span></div><div class="settings-row"><div><strong>圖片切換箭頭</strong><p>控制角色清單與角色頁面圖片兩側的切換箭頭。首次使用時，電腦版預設開啟、手機版預設關閉；手動調整後會記住你的選擇。</p></div><div class="arrow-setting-control"><label class="arrow-switch"><input id="showImageArrowsToggle" type="checkbox" onchange="setImageArrowPreference(this.checked)"><span class="arrow-switch-track"></span></label><span class="arrow-switch-label" id="showImageArrowsState">開啟</span></div></div><div class="settings-row"><div><strong>目前登入帳號</strong><p class="account-email">${esc(getCurrentAccountEmail())}</p></div><button class="danger" type="button" onclick="requestAccountLogout()">登出帳號</button></div><div class="modal-actions"><div></div><div class="right"><button class="primary" onclick="closeModal()">完成</button></div></div></div>`);
  const arrowToggle=document.getElementById('showImageArrowsToggle');if(arrowToggle){arrowToggle.checked=getImageArrowPreference();const state=document.getElementById('showImageArrowsState');if(state)state.textContent=arrowToggle.checked?'開啟':'關閉';}
 }
 function csvParse(text){
@@ -391,7 +410,7 @@ function importFile(file){
      else throw new Error('這份 CSV 不是可辨識的角色卡格式，請確認檔案內容。');
     }
    }
-   added=added.filter(x=>x&&x.name);if(!added.length)throw new Error('找不到可匯入的角色');characters=[...added,...characters.filter(c=>!added.some(a=>a.name===c.name))];saveLocal();render();toast(`已匯入 ${added.length} 位角色，請檢查欄位是否正確`);syncIfConfigured('import',added);
+   added=added.filter(x=>x&&x.name);if(!added.length)throw new Error('找不到可匯入的角色');characters=[...added,...characters.filter(c=>!added.some(a=>a.name===c.name))];saveLocal();render();toast(`準備將 ${added.length} 位角色寫入資料庫…`);syncIfConfigured('import',added).then(result=>{if(result?.ok){loadCloudCharacters();toast(`已成功寫入資料庫 ${added.length} 位角色`)}else{loadCloudCharacters();toast('匯入資料庫失敗，請查看錯誤訊息後重試')}});
   }catch(e){toast('匯入失敗：請確認檔案是有效的 CSV 或 JSON')}
  };reader.readAsText(file,'UTF-8');
 }
@@ -401,7 +420,6 @@ function setCurrentFilter(filter){
  document.querySelectorAll('#filters .chip').forEach(x=>x.classList.toggle('active',x.dataset.filter===currentFilter));
  render();
 }
-window.addEventListener('storage',e=>{if(e.key===STORAGE_KEY&&!isEditorPage){try{characters=JSON.parse(e.newValue||'[]');render()}catch(_){}}});
 render();loadCloudCharacters();window.addEventListener('resize',fitTagBadges);
 </script>
 </body>
