@@ -203,14 +203,35 @@ function applyResolvedDriveImage(img,url){
  img.src=url;
  if(img.complete&&img.naturalWidth>0)finish();
 }
+let cloudBridgeWaitPromise=null;
+function waitForCharacterCloudBridge(timeoutMs=30000){
+ const current=getCharacterCloudBridge();
+ if(current)return Promise.resolve(current);
+ if(cloudBridgeWaitPromise)return cloudBridgeWaitPromise;
+ cloudBridgeWaitPromise=new Promise(resolve=>{
+  const started=Date.now();
+  const timer=setInterval(()=>{
+   const bridge=getCharacterCloudBridge();
+   if(bridge||Date.now()-started>=timeoutMs){clearInterval(timer);resolve(bridge||null);}
+  },200);
+ }).finally(()=>{cloudBridgeWaitPromise=null});
+ return cloudBridgeWaitPromise;
+}
+function stopDriveImageLoading(img){
+ if(!img)return;
+ img.classList.remove('drive-image-pending');
+ img.removeAttribute('data-drive-id');
+ const carousel=img.closest('.image-carousel');
+ if(carousel)carousel.classList.add('image-load-finished');
+}
 function resolveDriveImage(id){
  if(!id)return Promise.resolve('');
  if(driveImageCache.has(id))return Promise.resolve(driveImageCache.get(id));
  if(driveImagePending.has(id))return driveImagePending.get(id);
- const bridge=getCharacterCloudBridge();
- if(!bridge||typeof bridge.resolveImage!=='function')return Promise.resolve('');
- const promise=bridge.resolveImage('drive://'+id)
-  .then(url=>{if(url)driveImageCache.set(id,url);return url||''})
+ const promise=waitForCharacterCloudBridge().then(bridge=>{
+  if(!bridge||typeof bridge.resolveImage!=='function')return '';
+  return bridge.resolveImage('drive://'+id);
+ }).then(url=>{if(url)driveImageCache.set(id,url);return url||''})
   .catch(error=>{console.warn('角色圖片載入失敗',id,error);return ''})
   .finally(()=>driveImagePending.delete(id));
  driveImagePending.set(id,promise);
@@ -218,7 +239,11 @@ function resolveDriveImage(id){
 }
 function loadDriveImageElement(img){
  const id=img?.dataset?.driveId;if(!id)return;
- resolveDriveImage(id).then(url=>{if(url&&img.isConnected)applyResolvedDriveImage(img,url)});
+ resolveDriveImage(id).then(url=>{
+  if(!img.isConnected)return;
+  if(url)applyResolvedDriveImage(img,url);
+  else stopDriveImageLoading(img);
+ });
 }
 // 預載採低併發、閒置時執行：先讓目前可見圖片顯示，再於背景暖好後續圖片。
 let drivePrefetchQueue=[],drivePrefetchRunning=0,drivePrefetchQueued=new Set();
@@ -522,9 +547,18 @@ async function loadCloudCharacters(){
    .withFailureHandler(err=>{if(loadVersion!==cloudLoadVersion)return;if(!characters.length)characters=[];render();toast('資料庫載入失敗：'+(err?.message||err));openEditorAfterLoad()}).loadCharactersFromSheet();
   return;
  }
- const bridge=getCharacterCloudBridge();
+ let bridge=getCharacterCloudBridge();
  if(!bridge){
-  if(!characters.length)render();toast('Google 雲端連線尚未就緒：正在等待登入連線，請稍候。');return;
+  // React 的登入狀態更新與 iframe 初始化有時會有短暫時間差；等待橋接就緒後再讀取。
+  bridge=await waitForCharacterCloudBridge(10000);
+  if(loadVersion!==cloudLoadVersion)return;
+ }
+ if(!bridge){
+  if(!characters.length)render();
+  document.querySelectorAll('img.drive-image-pending').forEach(stopDriveImageLoading);
+  toast('Google 雲端仍在初始化，系統會自動重試；請稍候，不必連續重新整理。');
+  if(!window.__ccrCloudRetryTimer)window.__ccrCloudRetryTimer=setTimeout(()=>{window.__ccrCloudRetryTimer=null;loadCloudCharacters()},2500);
+  return;
  }
  try{
   if(typeof bridge.list!=='function')throw new Error('目前網站的雲端橋接版本過舊，請重新部署 GitHub Pages。');
@@ -539,7 +573,12 @@ async function loadCloudCharacters(){
   if(!result.length)toast('資料庫已成功連線，但這個登入帳號目前沒有角色資料。');
  }catch(error){
   if(loadVersion!==cloudLoadVersion)return;
-  if(!characters.length)render();toast('雲端更新失敗，先顯示上次快取的角色資料：'+(error?.message||String(error)));return;
+  if(!characters.length)render();
+  // 雲端失敗時不能讓圖片骨架永久閃爍；下次重新整理仍會重新嘗試載入。
+  document.querySelectorAll('img.drive-image-pending').forEach(stopDriveImageLoading);
+  toast('雲端暫時連線失敗，先顯示上次快取的角色資料；系統會自動重試。'+(error?.message||String(error)));
+  if(!window.__ccrCloudRetryTimer)window.__ccrCloudRetryTimer=setTimeout(()=>{window.__ccrCloudRetryTimer=null;loadCloudCharacters()},3000);
+  return;
  }
  openEditorAfterLoad();
 }

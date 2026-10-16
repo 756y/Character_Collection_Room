@@ -122,11 +122,19 @@ async function apiFetch(url, options = {}) {
   const headers = new Headers(options.headers || {})
   headers.set('Authorization', `Bearer ${requireToken()}`)
   let response
-  try {
-    response = await fetch(url, { ...options, headers })
-  } catch (error) {
-    throw new Error(`無法連線至 Google API：${error?.message || '網路連線失敗'}。請確認網路、OAuth 授權與網站來源設定。`)
+  let lastNetworkError = null
+  // Retry short network interruptions / Google API throttling with backoff.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      response = await fetch(url, { ...options, headers })
+      if (response.status !== 429 && response.status < 500) break
+      if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 400 * (attempt + 1)))
+    } catch (error) {
+      lastNetworkError = error
+      if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 400 * (attempt + 1)))
+    }
   }
+  if (!response) throw new Error(`無法連線至 Google API：${lastNetworkError?.message || '網路連線失敗'}。已自動重試 3 次，請稍後再試。`)
   if (!response.ok) {
     let detail = ''
     try {
@@ -330,9 +338,9 @@ export async function signInWithGoogle({ silent = false } = {}) {
   if (currentProfile?.email) {
     try { localStorage.setItem('ccr_google_account_email', currentProfile.email) } catch { /* storage may be unavailable */ }
   }
-  await ensureRootFolder()
-  await ensureSpreadsheet()
-  await ensureImageFolder()
+  // Keep authentication/bridge startup independent from Drive folder and
+  // Sheets initialization. Data APIs will discover/create resources lazily.
+  // A temporary Drive failure during refresh must not prevent the page bridge.
   return currentProfile
 }
 
