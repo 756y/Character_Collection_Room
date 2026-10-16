@@ -17,6 +17,30 @@ const encodeSheetRange = (range) => encodeURIComponent(range).replace(/[!'()*]/g
 
 let accessToken = null
 let currentProfile = null
+
+const TOKEN_STORAGE_KEY = 'ccr_google_access_token'
+const TOKEN_EXPIRY_KEY = 'ccr_google_access_token_expiry'
+
+function readCachedAccessToken() {
+  try {
+    const token = localStorage.getItem(TOKEN_STORAGE_KEY)
+    const expiresAt = Number(localStorage.getItem(TOKEN_EXPIRY_KEY) || 0)
+    if (token && expiresAt > Date.now() + 60_000) {
+      accessToken = token
+      return token
+    }
+    localStorage.removeItem(TOKEN_STORAGE_KEY)
+    localStorage.removeItem(TOKEN_EXPIRY_KEY)
+  } catch { /* storage may be unavailable */ }
+  return null
+}
+
+function clearCachedAccessToken() {
+  try {
+    localStorage.removeItem(TOKEN_STORAGE_KEY)
+    localStorage.removeItem(TOKEN_EXPIRY_KEY)
+  } catch { /* storage may be unavailable */ }
+}
 let rootFolderId = null
 let spreadsheetId = null
 let imageFolderId = null
@@ -75,6 +99,10 @@ function requestAccessToken({ silent = false } = {}) {
           return
         }
         accessToken = response.access_token
+        try {
+          localStorage.setItem(TOKEN_STORAGE_KEY, response.access_token)
+          localStorage.setItem(TOKEN_EXPIRY_KEY, String(Date.now() + (Number(response.expires_in) || 3600) * 1000))
+        } catch { /* storage may be unavailable */ }
         resolve(response)
       },
       error_callback: error => reject(new Error(`Google 登入視窗無法開啟：${error?.message || error?.type || '請允許彈出視窗後重試。'}`)),
@@ -278,23 +306,40 @@ async function ensureSpreadsheet() {
 
 export async function signInWithGoogle({ silent = false } = {}) {
   await loadGoogleIdentityScript()
-  await requestAccessToken({ silent })
+
+  // On refresh, reuse a still-valid token first. If it has expired or been revoked,
+  // silently ask Google for a replacement without forcing account selection/consent.
+  if (silent && !readCachedAccessToken()) {
+    await requestAccessToken({ silent: true })
+  } else if (!silent) {
+    await requestAccessToken({ silent: false })
+  }
+
   try {
     currentProfile = await apiFetch(PROFILE_API)
-    if (currentProfile?.email) { try { localStorage.setItem('ccr_google_account_email', currentProfile.email) } catch { /* storage may be unavailable */ } }
-    await ensureRootFolder()
-    await ensureSpreadsheet()
-    await ensureImageFolder()
-    return currentProfile
   } catch (error) {
-    // Keep the token only for the current page session; the UI can retry or sign out.
-    throw error
+    if (!silent) throw error
+    // A cached token may have expired/revoked. Clear it and make one quiet renewal
+    // attempt; Google can still require a user gesture if its session has expired.
+    clearCachedAccessToken()
+    accessToken = null
+    await requestAccessToken({ silent: true })
+    currentProfile = await apiFetch(PROFILE_API)
   }
+
+  if (currentProfile?.email) {
+    try { localStorage.setItem('ccr_google_account_email', currentProfile.email) } catch { /* storage may be unavailable */ }
+  }
+  await ensureRootFolder()
+  await ensureSpreadsheet()
+  await ensureImageFolder()
+  return currentProfile
 }
 
 export async function signOutGoogle() {
   const token = accessToken
   try { localStorage.removeItem('ccr_google_account_email') } catch { /* storage may be unavailable */ }
+  clearCachedAccessToken()
   accessToken = null
   currentProfile = null
   rootFolderId = null

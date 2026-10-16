@@ -11,17 +11,25 @@ export default function App() {
     let cancelled = false
     let rememberedEmail = ''
     try { rememberedEmail = localStorage.getItem('ccr_google_account_email') || '' } catch { /* storage may be unavailable */ }
+
     if (!rememberedEmail) {
       setRestoringSession(false)
       return () => { cancelled = true }
     }
-    // Try to renew a short-lived Google access token without asking the user to
-    // choose the same account or consent again. If Google requires interaction,
-    // fall back to the normal login button.
+
+    // Restore the last-used account immediately so a browser refresh does not
+    // send the user back to the landing/login page while Google authorization
+    // is being resumed.
+    setProfile({ email: rememberedEmail })
     signInWithGoogle({ silent: true })
       .then(user => { if (!cancelled) setProfile(user) })
-      .catch(() => {})
+      .catch((error) => {
+        // Keep the collection view visible. Google may require interaction after
+        // a token expires/revocation; the remembered account remains available.
+        if (!cancelled) console.info('[CCR] Google 工作階段需要重新驗證。', error?.message || '')
+      })
       .finally(() => { if (!cancelled) setRestoringSession(false) })
+
     return () => { cancelled = true }
   }, [])
 
