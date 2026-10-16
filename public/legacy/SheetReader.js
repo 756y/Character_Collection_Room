@@ -59,6 +59,7 @@ function extractCocKeyValueFields(response){
  return fields;
 }
 const COC_FIELD_LABELS={
+ meaningful_locations:'意義非凡之地',meaningful_location:'意義非凡之地',important_places:'意義非凡之地',important_places_and_reasons:'意義非凡之地',
  character_name:'角色名稱',player:'玩家',occupation:'職業',sex:'性別',age:'年齡',
  birthplace:'出生地',residence:'居住地',str:'力量',dex:'敏捷',pow:'意志',con:'體質',
  app:'外貌',edu:'教育',siz:'體型',int:'智力',luck:'幸運',hp:'HP',mp:'MP',san:'SAN',
@@ -87,7 +88,7 @@ function mapCocSheetCharacter(url,response){
  }
  const skills={};
  for(const [key,label] of Object.entries(COC_FIELD_LABELS)){
-  const isAttr=['str','dex','pow','con','app','edu','siz','int','luck','hp','mp','san','armor','character_name','player','occupation','sex','age','birthplace','residence','personal_description','ideaology_beliefs','significant_people','meaningful_locations','treasured_posessions','traits','phobias_manias','injuries_scars','other_back_story','investigators_notes','gear_and_posessions','spending_level','cash','assets','san_start'].includes(key);
+  const isAttr=['str','dex','pow','con','app','edu','siz','int','luck','hp','mp','san','armor','character_name','player','occupation','sex','age','birthplace','residence','personal_description','ideaology_beliefs','significant_people','meaningful_locations','meaningful_location','important_places','importantplaces','important_places_and_reasons','treasured_posessions','traits','phobias_manias','injuries_scars','other_back_story','investigators_notes','gear_and_posessions','spending_level','cash','assets','san_start'].includes(key);
   if(!isAttr && !emptyCoc(f[key])) skills[label]=f[key];
  }
  // 把角色卡上的自訂技能、額外語言、武器及其他技能也保留下來。
@@ -116,7 +117,7 @@ function mapCocSheetCharacter(url,response){
   occupation:f.occupation||'',age:f.age||'',gender:f.sex||'',player:f.player||'',
   nationality:f.nationality||'',birthplace:f.birthplace||'',residence:f.residence||'',portraitUrl:'',originalImageUrl:'',images:[],
   description:desc,backstory:backstory,personality:f.traits||'',beliefs:f.ideaology_beliefs||'',injuries:f.injuries_scars||'',
-  importantPeople:f.significant_people||'',importantPlaces:f.meaningful_locations||'',
+  importantPeople:first(f.significant_people,f.important_people,f.significantPeople,''),importantPlaces:first(f.meaningful_locations,f.meaningful_location,f.important_places,f.importantPlaces,f.important_places_and_reasons,f.meaningful_locations_description,''),
   possessions:f.treasured_posessions||'',items:f.gear_and_posessions||'',weapons:f.weapon1_name&&f.weapon1_name!=='None'?[{name:f.weapon1_name,damage:f.weapon1_damage||'',range:f.weapon1_range||''}]:[],phobias:f.phobias_manias||'',
   notes,tags:[],favorite:false,status:'active',
   attributes:attrs,skills,rawCharacter:null,
@@ -144,7 +145,7 @@ function extractVisibleFields(response){
   '傷勢':['傷勢及傷痕','傷勢','傷痕','injuries_scars','injuries','scars'],
   '思想信念':['思想/信念','思想／信念','思想','信念','beliefs'],
   '重要之人':['重要之人及理由','重要之人','重要人物','significant_people'],
-  '意義非凡之地':['意義非凡之地','重要地點','meaningful_locations'],
+  '意義非凡之地':['意義非凡之地','異於常人的力量','重要地點','meaningful_locations','meaningful_location','important_places','important_places_and_reasons'],
   '性格特徵':['性格特徵','性格','個性','traits','personality'],
   '恐懼症':['恐懼症及狂躁症','恐懼症','狂躁症','phobias_manias'],
   '寶貴之物':['寶貴之物','珍愛物品','treasured_posessions','treasuredPossessions'],
@@ -191,7 +192,7 @@ function mapCompleteCharacter(raw,url,response){
  const age=first(info.age,info.年齡,deepFind(d,['age','年齡','年齢']),visible['年齡']);const gender=first(info.sex,info.gender,info.性別,deepFind(d,['gender','sex','性別']),visible['性別']);
  const player=first(info.playername,info.player,deepFind(d,['player','playername','玩家','玩家名稱']),visible['玩家']);const birthplace=first(info.birthplace,deepFind(d,['birthplace','出生地','出身']),visible['出生地']);const residence=first(info.residence,deepFind(d,['residence','居住地','所在地']),visible['居住地']);const nationality=first(info.nationality,deepFind(d,['nationality','國籍']),visible['國籍']);
  const bio=first(deepFind(d,['description','memo','introduction','簡介','形象描述','外貌']),visible['簡介']);const backstory=first(deepFind(d,['backstory','background','生平','背景資料','背景故事','背景']),visible['背景']);
- const injuries=first(deepFind(d,['injuries','injuries_scars','scars','傷勢及傷痕','傷勢','傷痕']));const beliefs=first(deepFind(d,['beliefs','belief','思想','信念']));const importantPeople=first(deepFind(d,['importantPeople','significantPeople','重要之人','重要人物']));const importantPlaces=first(deepFind(d,['importantPlaces','meaningfulLocation','意義非凡之地','重要地點']));const possessions=first(deepFind(d,['treasuredPossessions','treasured_posessions','珍愛物品','寶貴之物']));const items=first(deepFind(d,['gear_and_posessions','gearAndPossessions','inventory','carriedItems','隨身物品','裝備與持有物']));const phobias=first(deepFind(d,['phobias','manias','恐懼','恐懼症','癖好']));const personality=first(deepFind(d,['personality','traits','特質','個性']));
+ const injuries=first(deepFind(d,['injuries','injuries_scars','scars','傷勢及傷痕','傷勢','傷痕']));const beliefs=first(deepFind(d,['beliefs','belief','思想','信念']));const importantPeople=first(deepFind(d,['importantPeople','significantPeople','重要之人','重要人物']));const importantPlaces=first(deepFind(d,['importantPlaces','meaningfulLocations','meaningfulLocation','meaningful_locations','meaningful_location','important_places','important_places_and_reasons','異於常人的力量','意義非凡之地','重要地點']));const possessions=first(deepFind(d,['treasuredPossessions','treasured_posessions','珍愛物品','寶貴之物']));const items=first(deepFind(d,['gear_and_posessions','gearAndPossessions','inventory','carriedItems','隨身物品','裝備與持有物']));const phobias=first(deepFind(d,['phobias','manias','恐懼','恐懼症','癖好']));const personality=first(deepFind(d,['personality','traits','特質','個性']));
  return {id:'CHR-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:String(name),alias:'',work:'',type:'COC／CCFOLIA 角色卡',system:first(d.system,d.ruleset,deepFind(d,['system','ruleset','系統']),'COC 克蘇魯神話 7版'),occupation:toText(occupation),age:toText(age),gender:toText(gender),player:toText(player),nationality:toText(nationality),birthplace:toText(birthplace),residence:toText(residence),portraitUrl:'',originalImageUrl:'',images:[],description:toText(bio),backstory:toText(backstory),personality:toText(personality),beliefs:toText(beliefs),injuries:toText(injuries),importantPeople:toText(importantPeople),importantPlaces:toText(importantPlaces),possessions:toText(possessions),items:toText(items),phobias:toText(phobias),notes:'',tags:[],favorite:false,status:'active',attributes:attrFlat,skills,rawCharacter:raw,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}
 }
 async function fetchCharacterLink(){

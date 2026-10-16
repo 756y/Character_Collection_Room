@@ -62,6 +62,7 @@ function requestAccessToken({ silent = false } = {}) {
         'email',
         'profile',
         'https://www.googleapis.com/auth/drive.file',
+        'https://www.googleapis.com/auth/drive.metadata.readonly',
         'https://www.googleapis.com/auth/spreadsheets',
       ].join(' '),
       callback: response => {
@@ -366,8 +367,27 @@ export async function resolveDriveImage(value) {
   return resolveImage(value)
 }
 
+function extractDriveFileId(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  try {
+    const url = new URL(raw)
+    if (!['docs.google.com', 'drive.google.com'].includes(url.hostname.toLowerCase())) return ''
+    const pathMatch = url.pathname.match(/\/d\/([a-zA-Z0-9_-]+)/)
+    return pathMatch?.[1] || url.searchParams.get('id') || ''
+  } catch { return '' }
+}
+
+export async function getDriveFileInfo(value) {
+  const id = extractDriveFileId(value)
+  if (!id) throw new Error('這不是可辨識的 Google 文件／試算表連結。')
+  const file = await apiFetch(`${DRIVE_API}/files/${encodeURIComponent(id)}?fields=id,name,mimeType,webViewLink,trashed`)
+  if (file?.trashed) throw new Error('這個 Google 文件已移至垃圾桶。')
+  return { id: file.id, name: file.name || 'Google 文件', mimeType: file.mimeType || '', url: file.webViewLink || String(value).trim() }
+}
+
 const CATEGORY_FIELDS = {
-  basic: ['id', 'legacyId', 'name', 'alias', 'work', 'type', 'system', 'occupation', 'age', 'gender', 'player', 'nationality', 'birthplace', 'residence', 'createdAt', 'updatedAt', 'status', 'favorite', 'tags', 'notes'],
+  basic: ['id', 'legacyId', 'name', 'alias', 'work', 'type', 'system', 'occupation', 'age', 'gender', 'player', 'nationality', 'birthplace', 'residence', 'sourceUrl', 'documentLinks', 'createdAt', 'updatedAt', 'status', 'favorite', 'tags', 'notes'],
   attributes: ['attributes'],
   skills: ['skills'],
   story: ['description', 'backstory', 'personality', 'beliefs', 'importantPeople', 'importantPlaces', 'injuries', 'phobias', 'possessions', 'treasuredPossessions', 'story', 'history'],
@@ -376,10 +396,10 @@ const CATEGORY_FIELDS = {
 }
 const isIsoTimestamp = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)
 
-// Do not persist the import URL itself or the duplicate dump of every source-sheet cell.
+// Preserve ordinary Google Sheets source links and related document links. Remove only duplicate raw cell dumps; known oversized character-card source URLs are cleaned below.
 // Keep meaningful fields, including unknown/custom fields and the parsed raw character object.
 function cleanForStorage(value, key = '') {
-  if (/^(sourceUrl|sourceURL|source_url|sourceLink|source_link|rawSourceCells|raw_source_cells|_cloudImageMap)$/i.test(key)) return undefined
+  if (/^(rawSourceCells|raw_source_cells|_cloudImageMap)$/i.test(key)) return undefined
   if (typeof value === 'string') {
     // Remove this known oversized character-card URL even if it was embedded in raw JSON text.
     const withoutSourceLink = value.replace(/https?:\/\/character\.hktrpg\.com[^\s\"'<>]*/gi, '')
@@ -387,7 +407,7 @@ function cleanForStorage(value, key = '') {
     if (/^https?:\/\/\S+$/i.test(trimmed)) {
       try {
         const parsed = new URL(trimmed)
-        if (parsed.hostname.toLowerCase() === 'character.hktrpg.com' || trimmed.length > 500) return undefined
+        if (parsed.hostname.toLowerCase() === 'character.hktrpg.com') return undefined
       } catch { /* retain malformed URL-like text as ordinary text */ }
     }
     return withoutSourceLink
@@ -418,7 +438,7 @@ function partitionCharacter(character) {
     }
   }
   for (const [key, value] of Object.entries(cleaned)) {
-    if (assigned.has(key) || key === 'sourceUrl' || key === 'rawSourceCells' || key === '_cloudImageMap') continue
+    if (assigned.has(key) || key === 'rawSourceCells' || key === '_cloudImageMap') continue
     // Catch custom image properties without losing them in the general extras bucket.
     if (/(image|portrait|photo|gallery)/i.test(key)) parts.images[key] = value
     else parts.extra[key] = value
