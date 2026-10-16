@@ -5,6 +5,25 @@ export default function App() {
   const [profile, setProfile] = useState(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [restoringSession, setRestoringSession] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    let rememberedEmail = ''
+    try { rememberedEmail = localStorage.getItem('ccr_google_account_email') || '' } catch { /* storage may be unavailable */ }
+    if (!rememberedEmail) {
+      setRestoringSession(false)
+      return () => { cancelled = true }
+    }
+    // Try to renew a short-lived Google access token without asking the user to
+    // choose the same account or consent again. If Google requires interaction,
+    // fall back to the normal login button.
+    signInWithGoogle({ silent: true })
+      .then(user => { if (!cancelled) setProfile(user) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setRestoringSession(false) })
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     if (!profile) {
@@ -74,8 +93,8 @@ export default function App() {
           <div className="eyebrow">專屬於你的角色天地</div>
           <h1>故事，從這裡繼續。</h1>
           <p className="lead">使用 Google 帳號登入，將角色資料與圖片儲存在你自己的 Google Drive。</p>
-          <button className="submit-button" type="button" onClick={handleGoogleLogin} disabled={busy}>
-            {busy ? '正在連線 Google…' : '使用 Google 帳號登入'} <span aria-hidden="true">↗</span>
+          <button className="submit-button" type="button" onClick={handleGoogleLogin} disabled={busy || restoringSession}>
+            {restoringSession || busy ? '正在恢復 Google 登入…' : (localStorage.getItem('ccr_google_account_email') ? `繼續使用 ${localStorage.getItem('ccr_google_account_email')}` : '使用 Google 帳號登入')} <span aria-hidden="true">↗</span>
           </button>
           {message && <div className="message-box error" role="alert">{message}</div>}
           <div className="auth-footer"><span className="footer-lock">◇</span> 角色文字儲存於 Google 試算表，圖片儲存於 Google Drive</div>

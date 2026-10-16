@@ -5,7 +5,6 @@ function spreadsheetInfo(raw){try{const u=new URL(String(raw||'').trim());if(!/(
 function querySheetJsonp(url){return new Promise((resolve,reject)=>{const old=window.google; if(!window.google)window.google={};if(!google.visualization)google.visualization={};if(!google.visualization.Query)google.visualization.Query={};const q=google.visualization.Query,oldCb=q.setResponse;let done=false;const script=document.createElement('script');const timer=setTimeout(()=>finish(new Error('讀取逾時，請確認試算表已設為可檢視或已發布。')),16000);function finish(err,val){if(done)return;done=true;clearTimeout(timer);script.remove();if(oldCb===undefined)delete q.setResponse;else q.setResponse=oldCb;if(!old&&Object.keys(google).length===0)delete window.google;if(err)reject(err);else resolve(val)}q.setResponse=res=>{if(!res||res.status==='error'||!res.table){finish(new Error(res?.errors?.[0]?.detailed_message||'Google 試算表沒有回傳資料'));return}finish(null,res)};script.onerror=()=>finish(new Error('無法讀取試算表，請檢查網址與共用權限。'));script.src=url;document.head.appendChild(script)})}
 function parseJsonCandidate(v){if(v==null)return null;if(typeof v==='object')return v;if(typeof v!=='string')return null;let t=v.trim();const tries=[t];if(t.startsWith('"')&&t.endsWith('"'))tries.push(t.slice(1,-1).replace(/""/g,'"'));let a=t.indexOf('{'),b=t.lastIndexOf('}');if(a>=0&&b>a)tries.push(t.slice(a,b+1));for(let x of tries){try{let o=JSON.parse(x);if(typeof o==='string')o=JSON.parse(o);if(o&&typeof o==='object')return o}catch(e){}}return null}
 function unwrapRaw(o){return o?.kind==='character'&&o.data?o.data:(o?.data&&typeof o.data==='object'?o.data:o)}
-function flattenLeaves(value,prefix='',out={}){if(value===null||value===undefined){out[prefix]='';return out}if(Array.isArray(value)){if(!value.length){out[prefix]='[]';return out}value.forEach((v,i)=>flattenLeaves(v,prefix?`${prefix}[${i}]`:`[${i}]`,out));return out}if(typeof value==='object'){const entries=Object.entries(value);if(!entries.length){out[prefix]='{}';return out}for(const [k,v] of entries)flattenLeaves(v,prefix?`${prefix}.${k}`:k,out);return out}out[prefix]=String(value);return out}
 function deepFind(obj,keys){const wanted=new Set(keys.map(k=>k.toLowerCase()));const seen=new Set();function walk(v){if(!v||typeof v!=='object'||seen.has(v))return '';seen.add(v);for(const [k,x] of Object.entries(v)){if(wanted.has(k.toLowerCase())&&x!==null&&x!==undefined&&String(x).trim()!=='')return x}for(const x of Object.values(v)){const got=walk(x);if(got!==''&&got!==undefined)return got}return ''}return walk(obj)}
 function toText(v){if(v===null||v===undefined)return '';if(typeof v==='string')return v;if(typeof v==='number'||typeof v==='boolean')return String(v);if(Array.isArray(v))return v.map(toText).filter(Boolean).join('\n');return JSON.stringify(v,null,2)}
 function candidateScore(obj){
@@ -110,20 +109,18 @@ function mapCocSheetCharacter(url,response){
   f.charchest_traits?`角色特徵：${f.charchest_traits}`:'',
   f.charchest_exp?`經驗包：${f.charchest_exp}`:'',
   f.tomes_spells_artifacts?`典籍／法術／神器：${f.tomes_spells_artifacts}`:'',
-  f.gear_and_posessions?`裝備與持有物：${f.gear_and_posessions}`:'',
-  f.weapon1_name&&f.weapon1_name!=='None'?`武器：${f.weapon1_name}（${f.weapon1_damage||''}，射程 ${f.weapon1_range||''}）`:''
  ].filter(Boolean).join('\n');
  return {
   id:'CHR-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),
   name,alias:'',work:'',type:'COC 7版／Google 試算表匯入',system:'COC 克蘇魯神話 7版',
   occupation:f.occupation||'',age:f.age||'',gender:f.sex||'',player:f.player||'',
-  nationality:f.birthplace||'',portraitUrl:'',originalImageUrl:'',images:[],sourceUrl:url,
+  nationality:f.nationality||'',birthplace:f.birthplace||'',residence:f.residence||'',portraitUrl:'',originalImageUrl:'',images:[],
   description:desc,backstory:backstory,personality:f.traits||'',beliefs:f.ideaology_beliefs||'',injuries:f.injuries_scars||'',
   importantPeople:f.significant_people||'',importantPlaces:f.meaningful_locations||'',
-  possessions:f.treasured_posessions||f.gear_and_posessions||'',phobias:f.phobias_manias||'',
+  possessions:f.treasured_posessions||'',items:f.gear_and_posessions||'',weapons:f.weapon1_name&&f.weapon1_name!=='None'?[{name:f.weapon1_name,damage:f.weapon1_damage||'',range:f.weapon1_range||''}]:[],phobias:f.phobias_manias||'',
   notes,tags:[],favorite:false,status:'active',
   attributes:attrs,skills,rawCharacter:null,
-  rawSourceCells:{format:'COC Sheet key/value columns AM:AO',fields:f,rows:(response?.table?.rows||[]).map(r=>(r.c||[]).map(cellText))},
+  
   createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()
  };
 }
@@ -138,8 +135,10 @@ function extractVisibleFields(response){
   '性別':['性別','gender','sex'],
   '年齡':['年齡','年龄','年齢','age'],
   '職位':['職位','職業','職業／身份','身份','occupation','job'],
-  '出生地':['出生地','出身','國籍','国籍','nationality','birthplace'],
+  '出生地':['出生地','出身','birthplace'],
+  '國籍':['國籍','国籍','nationality'],
   '居住地':['居住地','所在地','residence'],
+  '隨身物品':['隨身物品','裝備與持有物','gear_and_posessions','inventory','items'],
   '學歷':['學歷','学历','教育','education'],
   '簡介':['簡介','介紹','角色簡介','形象描述','description','introduction'],
   '傷勢':['傷勢及傷痕','傷勢','傷痕','injuries_scars','injuries','scars'],
@@ -148,7 +147,7 @@ function extractVisibleFields(response){
   '意義非凡之地':['意義非凡之地','重要地點','meaningful_locations'],
   '性格特徵':['性格特徵','性格','個性','traits','personality'],
   '恐懼症':['恐懼症及狂躁症','恐懼症','狂躁症','phobias_manias'],
-  '寶貴之物':['寶貴之物','珍愛物品','treasured_posessions','possessions'],
+  '寶貴之物':['寶貴之物','珍愛物品','treasured_posessions','treasuredPossessions'],
   '背景':['背景','背景資料','背景故事','人物背景','角色背景','人物設定','角色設定','生平','backstory','background'],
   '職業備忘':['職業備忘','職業補充','職業描述'],
   '力量':['力量','str','strength'],'敏捷':['敏捷','dex','dexterity'],'意志':['意志','pow','power'],
@@ -177,7 +176,7 @@ function mapVisibleFallback(url,response){
  const name=first(v['角色'],v['姓名'],v['角色名稱'],'未命名角色');
  const occupation=first(v['職位'],v['職業'],'');
  const description=first(v['簡介'],'');const backstory=first(v['背景'],'');
- return {id:'CHR-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:String(name),alias:'',work:'',type:'自訂角色／試算表匯入',system:'',occupation:String(occupation),age:String(v['年齡']||''),gender:String(v['性別']||''),player:String(v['玩家']||''),nationality:String(v['出生地']||v['居住地']||''),portraitUrl:'',originalImageUrl:'',images:[],sourceUrl:url,description:String(description),backstory:String(backstory),personality:String(v['性格特徵']||''),beliefs:String(v['思想信念']||''),importantPeople:String(v['重要之人']||''),importantPlaces:String(v['意義非凡之地']||''),injuries:String(v['傷勢']||''),possessions:String(v['寶貴之物']||''),phobias:String(v['恐懼症']||''),notes:'',tags:[],favorite:false,status:'active',attributes,skills:{},rawCharacter:null,rawSourceCells:{visibleFields:v,rows:(response?.table?.rows||[]).map(r=>(r.c||[]).map(cellText))},createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+ return {id:'CHR-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:String(name),alias:'',work:'',type:'自訂角色／試算表匯入',system:'',occupation:String(occupation),age:String(v['年齡']||''),gender:String(v['性別']||''),player:String(v['玩家']||''),nationality:String(v['國籍']||''),birthplace:String(v['出生地']||''),residence:String(v['居住地']||''),portraitUrl:'',originalImageUrl:'',images:[],description:String(description),backstory:String(backstory),personality:String(v['性格特徵']||''),beliefs:String(v['思想信念']||''),importantPeople:String(v['重要之人']||''),importantPlaces:String(v['意義非凡之地']||''),injuries:String(v['傷勢']||''),possessions:String(v['寶貴之物']||''),items:String(v['隨身物品']||''),phobias:String(v['恐懼症']||''),notes:'',tags:[],favorite:false,status:'active',attributes,skills:{},rawCharacter:null,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
 }
 function mapCompleteCharacter(raw,url,response){
  const d=unwrapRaw(raw)||{};const info=d.infos||d.info||d.information||{};const attrs=d.attribs||d.attributes||d.characteristics||{};const statusArr=Array.isArray(d.status)?d.status:[];const paramArr=Array.isArray(d.params)?d.params:[];const visible=extractVisibleFields(response);
@@ -190,10 +189,10 @@ function mapCompleteCharacter(raw,url,response){
  const name=first(d.name,info.name,deepFind(d,['characterName','character_name','角色名稱','姓名','name']),visible['角色'],visible['角色名稱'],visible['姓名'],'未命名角色');
  const jobs=[visible['職位'],visible['職業'],info.occupation,info.job,d.occupation,d.job,deepFind(d,['occupation','job','職業','職業／身份','職位'])].filter(Boolean).map(String);const occupation=[...new Set(jobs)].join('／');
  const age=first(info.age,info.年齡,deepFind(d,['age','年齡','年齢']),visible['年齡']);const gender=first(info.sex,info.gender,info.性別,deepFind(d,['gender','sex','性別']),visible['性別']);
- const player=first(info.playername,info.player,deepFind(d,['player','playername','玩家','玩家名稱']),visible['玩家']);const nationality=first(info.residence,info.birthplace,deepFind(d,['nationality','residence','birthplace','國籍','出身','居住地']),visible['出生地'],visible['居住地']);
+ const player=first(info.playername,info.player,deepFind(d,['player','playername','玩家','玩家名稱']),visible['玩家']);const birthplace=first(info.birthplace,deepFind(d,['birthplace','出生地','出身']),visible['出生地']);const residence=first(info.residence,deepFind(d,['residence','居住地','所在地']),visible['居住地']);const nationality=first(info.nationality,deepFind(d,['nationality','國籍']),visible['國籍']);
  const bio=first(deepFind(d,['description','memo','introduction','簡介','形象描述','外貌']),visible['簡介']);const backstory=first(deepFind(d,['backstory','background','生平','背景資料','背景故事','背景']),visible['背景']);
- const injuries=first(deepFind(d,['injuries','injuries_scars','scars','傷勢及傷痕','傷勢','傷痕']));const beliefs=first(deepFind(d,['beliefs','belief','思想','信念']));const importantPeople=first(deepFind(d,['importantPeople','significantPeople','重要之人','重要人物']));const importantPlaces=first(deepFind(d,['importantPlaces','meaningfulLocation','意義非凡之地','重要地點']));const possessions=first(deepFind(d,['treasuredPossessions','possessions','珍愛物品','寶貴之物']));const phobias=first(deepFind(d,['phobias','manias','恐懼','恐懼症','癖好']));const personality=first(deepFind(d,['personality','traits','特質','個性']));
- const flat=flattenLeaves(raw);return {id:'CHR-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:String(name),alias:'',work:'',type:'COC／CCFOLIA 角色卡',system:first(d.system,d.ruleset,deepFind(d,['system','ruleset','系統']),'COC 克蘇魯神話 7版'),occupation:toText(occupation),age:toText(age),gender:toText(gender),player:toText(player),nationality:toText(nationality),portraitUrl:'',originalImageUrl:'',images:[],sourceUrl:url,description:toText(bio),backstory:toText(backstory),personality:toText(personality),beliefs:toText(beliefs),injuries:toText(injuries),importantPeople:toText(importantPeople),importantPlaces:toText(importantPlaces),possessions:toText(possessions),phobias:toText(phobias),notes:'',tags:[],favorite:false,status:'active',attributes:attrFlat,skills,rawCharacter:raw,rawSourceCells:{flattened:flat,visibleFields:visible},createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}
+ const injuries=first(deepFind(d,['injuries','injuries_scars','scars','傷勢及傷痕','傷勢','傷痕']));const beliefs=first(deepFind(d,['beliefs','belief','思想','信念']));const importantPeople=first(deepFind(d,['importantPeople','significantPeople','重要之人','重要人物']));const importantPlaces=first(deepFind(d,['importantPlaces','meaningfulLocation','意義非凡之地','重要地點']));const possessions=first(deepFind(d,['treasuredPossessions','treasured_posessions','珍愛物品','寶貴之物']));const items=first(deepFind(d,['gear_and_posessions','gearAndPossessions','inventory','carriedItems','隨身物品','裝備與持有物']));const phobias=first(deepFind(d,['phobias','manias','恐懼','恐懼症','癖好']));const personality=first(deepFind(d,['personality','traits','特質','個性']));
+ return {id:'CHR-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:String(name),alias:'',work:'',type:'COC／CCFOLIA 角色卡',system:first(d.system,d.ruleset,deepFind(d,['system','ruleset','系統']),'COC 克蘇魯神話 7版'),occupation:toText(occupation),age:toText(age),gender:toText(gender),player:toText(player),nationality:toText(nationality),birthplace:toText(birthplace),residence:toText(residence),portraitUrl:'',originalImageUrl:'',images:[],description:toText(bio),backstory:toText(backstory),personality:toText(personality),beliefs:toText(beliefs),injuries:toText(injuries),importantPeople:toText(importantPeople),importantPlaces:toText(importantPlaces),possessions:toText(possessions),items:toText(items),phobias:toText(phobias),notes:'',tags:[],favorite:false,status:'active',attributes:attrFlat,skills,rawCharacter:raw,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}
 }
 async function fetchCharacterLink(){
  const input=document.getElementById('f_sourceUrl'),url=input?.value.trim(),status=document.getElementById('fetchStatus');
@@ -232,8 +231,8 @@ async function fetchCharacterLink(){
   else window._pendingFetchedCharacter=imported;
   renderImageManager();
   const fill=(id,v)=>{const el=document.getElementById('f_'+id);if(el&&v!==undefined&&v!==null&&String(v)!=='')el.value=typeof v==='object'?JSON.stringify(v):String(v)};
-  ['name','occupation','system','type','work','age','gender','player','nationality','description','backstory','personality','beliefs','importantPeople','importantPlaces','injuries','possessions','phobias'].forEach(k=>fill(k,imported[k]));
-  fill('tags',tagsOf(imported).join(', '));fill('rawCharacter',JSON.stringify(imported.rawCharacter||imported.rawSourceCells||{},null,2));
+  ['name','occupation','system','type','work','age','gender','player','nationality','birthplace','residence','description','backstory','personality','beliefs','importantPeople','importantPlaces','injuries','possessions','items','phobias'].forEach(k=>fill(k,imported[k]));
+  fill('tags',tagsOf(imported).join(', '));fill('rawCharacter',imported.rawCharacter?JSON.stringify(imported.rawCharacter,null,2):'');
   if(status){const base=imported.rawCharacter?`讀取成功：${imported.name}；屬性 ${Object.keys(imported.attributes||{}).length} 項、技能 ${Object.keys(imported.skills||{}).length} 項。`:`已擷取：${imported.name}；屬性 ${Object.keys(imported.attributes||{}).length} 項、技能 ${Object.keys(imported.skills||{}).length} 項。`;status.textContent=base+' 圖片不會從試算表自動擷取，請在編輯頁上方手動上傳。';}
   toast('已讀取角色資料；圖片請在最上方手動上傳。');
  }catch(e){if(status)status.textContent='讀取失敗：'+e.message;toast('讀取失敗：'+e.message)}

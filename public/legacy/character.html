@@ -236,7 +236,7 @@ function openEditor(id){
   return;
  }
  editingId=id||null;
- const c=(id?characters.find(x=>x.id===id):null)||{name:'',alias:'',work:'',type:'自訂角色',system:'',occupation:'',age:'',gender:'',player:'',nationality:'',portraitUrl:'',originalImageUrl:'',images:[],sourceUrl:'',description:'',backstory:'',personality:'',beliefs:'',importantPeople:'',importantPlaces:'',specialAbilities:'',injuries:'',possessions:'',phobias:'',tags:[],favorite:false,notes:'',attributes:{},skills:{}};
+ const c=(id?characters.find(x=>x.id===id):null)||{name:'',alias:'',work:'',type:'自訂角色',system:'',occupation:'',age:'',gender:'',player:'',nationality:'',birthplace:'',residence:'',portraitUrl:'',originalImageUrl:'',images:[],sourceUrl:'',description:'',backstory:'',personality:'',beliefs:'',importantPeople:'',importantPlaces:'',specialAbilities:'',injuries:'',possessions:'',items:'',phobias:'',tags:[],favorite:false,notes:'',attributes:{},skills:{}};
  window._editingImages=effectiveImages(c).slice();
  openModal('角色頁面',`
  <section class="image-editor-panel"><div class="image-editor-heading"><div><strong>角色圖片</strong><div class="image-help">上方一次顯示一張；可左右滑動或按箭頭切換，最多 10 張。</div></div></div><div id="imageManager" class="image-manager"></div><div class="image-upload-row"><label class="image-upload-button secondary" for="f_imageFiles">＋ 上傳圖片（可多選）</label><input class="hidden" id="f_imageFiles" type="file" accept="image/*" multiple onchange="handleImageFiles(this.files)"></div></section>
@@ -245,7 +245,7 @@ function openEditor(id){
  <div class="field"><label>角色名稱 *</label><input id="f_name" value="${esc(c.name)}" placeholder="角色姓名"></div>
  <div class="field"><label>職業／身份</label><input id="f_occupation" value="${esc(c.occupation)}"></div>
  <div class="field"><label>年齡</label><input id="f_age" value="${esc(c.age)}"></div><div class="field"><label>性別</label><input id="f_gender" value="${esc(c.gender)}"></div>
- <div class="field"><label>玩家</label><input id="f_player" value="${esc(c.player)}"></div><div class="field"><label>國籍／出身</label><input id="f_nationality" value="${esc(c.nationality)}"></div>
+ <div class="field"><label>玩家</label><input id="f_player" value="${esc(c.player)}"></div><div class="field"><label>出生地</label><input id="f_birthplace" value="${esc(c.birthplace||c.nationality)}"></div><div class="field"><label>居住地</label><input id="f_residence" value="${esc(c.residence)}"></div>
  <div class="field full"><label>Tag／標籤（用逗號分隔）</label><input id="f_tags" value="${esc(tagsOf(c).join(', '))}" placeholder="留空即可，不會自動加入標籤"></div>
  <div class="form-section full"><h3>角色設定</h3><p>依照角色背景與內在特質整理，角色資料會依照相同順序整理。</p></div>
  <details class="setting-fold full"><summary>形象描述</summary><div class="field"><label>形象描述</label><textarea id="f_description">${esc(c.description)}</textarea></div></details>
@@ -255,7 +255,8 @@ function openEditor(id){
  <details class="setting-fold full"><summary>重要之人及理由</summary><div class="field"><label>重要之人及理由</label><textarea id="f_importantPeople">${esc(c.importantPeople)}</textarea></div></details>
  <details class="setting-fold full"><summary>恐懼症及狂躁症</summary><div class="field"><label>恐懼症及狂躁症</label><textarea id="f_phobias">${esc(c.phobias)}</textarea></div></details>
  <details class="setting-fold full"><summary>異於常人的力量</summary><div class="field"><label>異於常人的力量</label><textarea id="f_specialAbilities">${esc(c.specialAbilities||'')}</textarea></div></details>
- <details class="setting-fold full"><summary>寶貴之物</summary><div class="field"><label>寶貴之物</label><textarea id="f_possessions">${esc(c.possessions)}</textarea></div></details>
+ <details class="setting-fold full"><summary>寶貴之物</summary><div class="field"><label>寶貴之物</label><textarea id="f_possessions">${esc(c.possessions||c.treasuredPossessions||'')}</textarea></div></details>
+ <details class="setting-fold full"><summary>隨身物品／裝備</summary><div class="field"><label>隨身物品／裝備</label><textarea id="f_items">${esc(c.items||'')}</textarea></div></details>
  <details class="setting-fold full"><summary>生平故事</summary><div class="field"><label>生平故事</label><textarea id="f_backstory">${esc(c.backstory)}</textarea></div></details>
  <div class="field full"><label>完整原始角色卡資料（JSON）</label><textarea id="f_rawCharacter" style="min-height:180px;font-family:ui-monospace,monospace;font-size:11px">${esc(c.rawCharacter?JSON.stringify(c.rawCharacter,null,2):'')}</textarea><small>抓到完整 JSON 時會保留未映射欄位；若是一般表格，會保留辨識到的標籤和值。</small></div>
  <div class="field full"><label>系統／規則</label><input id="f_system" value="${esc(c.system)}" placeholder="例如：COC 7版"></div>
@@ -269,7 +270,7 @@ function saveCharacter(){
  const val=id=>document.getElementById('f_'+id)?.value||'';
  const name=val('name').trim();if(!name){toast('請先填寫角色名稱');$('f_name').focus();return}
  const old=editingId?characters.find(x=>x.id===editingId):null;
- const c={...(old||{}),id:old?.id||('CHR-'+Date.now().toString().slice(-8)),name,alias:old?.alias||'',occupation:val('occupation'),system:val('system'),type:old?.type||'自訂角色',work:old?.work||'',age:val('age'),gender:val('gender'),player:val('player'),nationality:val('nationality'),sourceUrl:val('sourceUrl'),portraitUrl:old?.portraitUrl||'',originalImageUrl:old?.originalImageUrl||'',images:(window._editingImages||[]).slice(),tags:val('tags').split(/[,，、]/).map(x=>x.trim()).filter(Boolean),description:val('description'),backstory:val('backstory'),personality:val('personality'),beliefs:val('beliefs'),importantPeople:val('importantPeople'),importantPlaces:old?.importantPlaces||'',specialAbilities:val('specialAbilities'),injuries:val('injuries'),possessions:val('possessions'),phobias:val('phobias'),notes:val('notes'),favorite:$('f_favorite').checked,attributes:old?.attributes||window._pendingFetchedCharacter?.attributes||{},skills:old?.skills||window._pendingFetchedCharacter?.skills||{},rawCharacter:(()=>{const t=val('rawCharacter').trim();if(t){try{return JSON.parse(t)}catch(e){toast('完整原始資料不是有效 JSON，已保留原本資料');return old?.rawCharacter||window._pendingFetchedCharacter?.rawCharacter||null}}return old?.rawCharacter||window._pendingFetchedCharacter?.rawCharacter||null})(),rawSourceCells:old?.rawSourceCells||window._pendingFetchedCharacter?.rawSourceCells||null,createdAt:old?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+ const c={...(old||{}),id:old?.id||('CHR-'+Date.now().toString().slice(-8)),name,alias:old?.alias||'',occupation:val('occupation'),system:val('system'),type:old?.type||'自訂角色',work:old?.work||'',age:val('age'),gender:val('gender'),player:val('player'),nationality:old?.nationality||'',birthplace:val('birthplace'),residence:val('residence'),items:val('items'),sourceUrl:val('sourceUrl'),portraitUrl:old?.portraitUrl||'',originalImageUrl:old?.originalImageUrl||'',images:(window._editingImages||[]).slice(),tags:val('tags').split(/[,，、]/).map(x=>x.trim()).filter(Boolean),description:val('description'),backstory:val('backstory'),personality:val('personality'),beliefs:val('beliefs'),importantPeople:val('importantPeople'),importantPlaces:old?.importantPlaces||'',specialAbilities:val('specialAbilities'),injuries:val('injuries'),possessions:val('possessions'),phobias:val('phobias'),notes:val('notes'),favorite:$('f_favorite').checked,attributes:old?.attributes||window._pendingFetchedCharacter?.attributes||{},skills:old?.skills||window._pendingFetchedCharacter?.skills||{},rawCharacter:(()=>{const t=val('rawCharacter').trim();if(t){try{return JSON.parse(t)}catch(e){toast('完整原始資料不是有效 JSON，已保留原本資料');return old?.rawCharacter||window._pendingFetchedCharacter?.rawCharacter||null}}return old?.rawCharacter||window._pendingFetchedCharacter?.rawCharacter||null})(),rawSourceCells:old?.rawSourceCells||window._pendingFetchedCharacter?.rawSourceCells||null,createdAt:old?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
  if(old){characters=characters.map(x=>x.id===old.id?c:x)}else{characters.unshift(c)}
  saveLocal();window._pendingFetchedCharacter=null;if(isEditorPage){const savedMessage=old?'角色已更新並同步至 Google Sheets':'角色已新增並同步至 Google Sheets';toast(savedMessage);const syncPromise=syncIfConfigured('upsert',c);syncPromise.then(result=>{if(result?.ok){if(window.opener&&!window.opener.closed){window.close();setTimeout(()=>{if(!window.closed)navigateToGallery()},150)}else navigateToGallery()}else{toast('角色文字未寫入 Google 試算表；請保留此頁，並依「雲端同步失敗」訊息檢查原因。')}});}else{closeModal();render();toast(old?'角色已更新':'角色已新增');syncIfConfigured('upsert',c);}
 }
@@ -383,7 +384,7 @@ function setCurrentFilter(filter){
  document.querySelectorAll('#filters .chip').forEach(x=>x.classList.toggle('active',x.dataset.filter===currentFilter));
  render();
 }
-render();loadCloudCharacters();window.addEventListener('resize',fitTagBadges);
+if(isEditorPage && !editorTargetId){render();openEditor();}else{render();loadCloudCharacters();}window.addEventListener('resize',fitTagBadges);
 </script>
 </body>
 </html>

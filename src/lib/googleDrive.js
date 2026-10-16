@@ -8,11 +8,8 @@ const PROFILE_API = 'https://www.googleapis.com/oauth2/v3/userinfo'
 const APP_PROPERTY_KEY = 'characterCollectionRoom'
 const APP_PROPERTY_VALUE = 'personal-media-library-v1'
 const SHEET_NAME = 'Characters'
-const JSON_CHUNK_SIZE = 40000
-const JSON_CHUNK_COUNT = 24
-const UPDATED_AT_COLUMN = 'AA'
-// Split JSON across multiple cells so each stays below Google Sheets' 50,000-character cell limit.
-const HEADERS = ['id', 'title', ...Array.from({ length: JSON_CHUNK_COUNT }, (_, index) => `content_json_${index + 1}`), 'updated_at']
+// Store each character in a small set of broad JSON categories rather than splitting one JSON blob across many cells.
+const HEADERS = ['id', 'title', 'basic_info_json', 'attributes_json', 'skills_json', 'story_json', 'items_weapons_json', 'extra_json', 'images_json', 'updated_at']
 // 使用英文分頁名稱 Characters，避免非英文分頁名稱造成範圍解析疑慮。
 const sheetRange = (cells) => `${SHEET_NAME}!${cells}`
 // 將整個 A1 範圍編碼為 URL path segment，並額外編碼 ! 等保留字元。
@@ -49,14 +46,16 @@ function loadGoogleIdentityScript() {
   return scriptPromise
 }
 
-function requestAccessToken() {
+function requestAccessToken({ silent = false } = {}) {
   return new Promise((resolve, reject) => {
     if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.startsWith('PASTE_')) {
       reject(new Error('尚未設定 Google OAuth Client ID。請在 src/lib/googleDrive.js 最上方，將 GOOGLE_CLIENT_ID 替換成 Google Cloud 建立的「Web application」用戶端 ID。'))
       return
     }
+    const rememberedEmail = localStorage.getItem('ccr_google_account_email') || ''
     tokenClient = window.google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
+      ...(rememberedEmail ? { hint: rememberedEmail } : {}),
       scope: [
         'openid',
         'email',
@@ -78,7 +77,9 @@ function requestAccessToken() {
       },
       error_callback: error => reject(new Error(`Google 登入視窗無法開啟：${error?.message || error?.type || '請允許彈出視窗後重試。'}`)),
     })
-    tokenClient.requestAccessToken({ prompt: 'consent select_account' })
+    // Reuse the previously authorized Google account when possible. Google may still
+    // require an interaction if its session or consent has expired.
+    tokenClient.requestAccessToken({ prompt: silent ? '' : 'consent select_account' })
   })
 }
 
@@ -258,20 +259,22 @@ async function ensureSpreadsheet() {
   }
 
   await ensureSheetTab()
+  // Clear legacy split-JSON headers K:AA while preserving the old row data for backward-compatible reads.
   const range = sheetRange('A1:AA1')
   await apiFetch(`${SHEETS_API}/${spreadsheetId}/values/${encodeSheetRange(range)}?valueInputOption=RAW`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ values: [HEADERS] }),
+    body: JSON.stringify({ values: [[...HEADERS, ...Array(27 - HEADERS.length).fill('')]] }),
   })
   return spreadsheetId
 }
 
-export async function signInWithGoogle() {
+export async function signInWithGoogle({ silent = false } = {}) {
   await loadGoogleIdentityScript()
-  await requestAccessToken()
+  await requestAccessToken({ silent })
   try {
     currentProfile = await apiFetch(PROFILE_API)
+    if (currentProfile?.email) { try { localStorage.setItem('ccr_google_account_email', currentProfile.email) } catch { /* storage may be unavailable */ } }
     await ensureRootFolder()
     await ensureSpreadsheet()
     await ensureImageFolder()
@@ -284,6 +287,7 @@ export async function signInWithGoogle() {
 
 export async function signOutGoogle() {
   const token = accessToken
+  try { localStorage.removeItem('ccr_google_account_email') } catch { /* storage may be unavailable */ }
   accessToken = null
   currentProfile = null
   rootFolderId = null
@@ -354,6 +358,87 @@ async function resolveImage(value) {
   return url
 }
 
+const CATEGORY_FIELDS = {
+  basic: ['id', 'legacyId', 'name', 'alias', 'work', 'type', 'system', 'occupation', 'age', 'gender', 'player', 'nationality', 'birthplace', 'residence', 'createdAt', 'updatedAt', 'status', 'favorite', 'tags', 'notes'],
+  attributes: ['attributes'],
+  skills: ['skills'],
+  story: ['description', 'backstory', 'personality', 'beliefs', 'importantPeople', 'importantPlaces', 'injuries', 'phobias', 'possessions', 'treasuredPossessions', 'story', 'history'],
+  items: ['items', 'weapons', 'weapon', 'equipment', 'inventory', 'cash', 'money', 'currency', 'belongings', 'carriedItems', 'itemsAndWeapons', 'items_weapons'],
+  images: ['images', 'portraitUrl', 'originalImageUrl', 'imageUrl', 'imageUrls', 'photos', 'gallery'],
+}
+const isIsoTimestamp = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)
+
+// Do not persist the import URL itself or the duplicate dump of every source-sheet cell.
+// Keep meaningful fields, including unknown/custom fields and the parsed raw character object.
+function cleanForStorage(value, key = '') {
+  if (/^(sourceUrl|sourceURL|source_url|sourceLink|source_link|rawSourceCells|raw_source_cells|_cloudImageMap)$/i.test(key)) return undefined
+  if (typeof value === 'string') {
+    // Remove this known oversized character-card URL even if it was embedded in raw JSON text.
+    const withoutSourceLink = value.replace(/https?:\/\/character\.hktrpg\.com[^\s\"'<>]*/gi, '')
+    const trimmed = withoutSourceLink.trim()
+    if (/^https?:\/\/\S+$/i.test(trimmed)) {
+      try {
+        const parsed = new URL(trimmed)
+        if (parsed.hostname.toLowerCase() === 'character.hktrpg.com' || trimmed.length > 500) return undefined
+      } catch { /* retain malformed URL-like text as ordinary text */ }
+    }
+    return withoutSourceLink
+  }
+  if (Array.isArray(value)) return value.map(item => cleanForStorage(item)).filter(item => item !== undefined)
+  if (value && typeof value === 'object') {
+    const result = {}
+    for (const [childKey, childValue] of Object.entries(value)) {
+      const cleaned = cleanForStorage(childValue, childKey)
+      if (cleaned !== undefined) result[childKey] = cleaned
+    }
+    return result
+  }
+  return value
+}
+
+function partitionCharacter(character) {
+  const cleaned = cleanForStorage(character) || {}
+  const parts = { basic: {}, attributes: {}, skills: {}, story: {}, items: {}, extra: {}, images: {} }
+  const assigned = new Set()
+  for (const [category, fields] of Object.entries(CATEGORY_FIELDS)) {
+    const partKey = category === 'basic' ? 'basic' : category
+    for (const field of fields) {
+      if (Object.prototype.hasOwnProperty.call(cleaned, field)) {
+        parts[partKey][field] = cleaned[field]
+        assigned.add(field)
+      }
+    }
+  }
+  for (const [key, value] of Object.entries(cleaned)) {
+    if (assigned.has(key) || key === 'sourceUrl' || key === 'rawSourceCells' || key === '_cloudImageMap') continue
+    // Catch custom image properties without losing them in the general extras bucket.
+    if (/(image|portrait|photo|gallery)/i.test(key)) parts.images[key] = value
+    else parts.extra[key] = value
+  }
+  return [parts.basic, parts.attributes, parts.skills, parts.story, parts.items, parts.extra, parts.images]
+    .map(part => JSON.stringify(part))
+}
+
+function combineCategoryCells(row) {
+  const names = ['basic', 'attributes', 'skills', 'story', 'items', 'extra', 'images']
+  const parsed = {}
+  const invalid = {}
+  names.forEach((name, index) => {
+    const raw = String(row[index + 2] || '')
+    if (!raw) { parsed[name] = {}; return }
+    try {
+      const value = JSON.parse(raw)
+      parsed[name] = value && typeof value === 'object' && !Array.isArray(value) ? value : {}
+    } catch {
+      parsed[name] = {}
+      invalid[`${name}_json_unparsed`] = raw
+    }
+  })
+  const combined = { ...parsed.basic, ...parsed.attributes, ...parsed.skills, ...parsed.story, ...parsed.items, ...parsed.extra, ...parsed.images }
+  if (Object.keys(invalid).length) combined._unparsedCloudColumns = invalid
+  return combined
+}
+
 async function prepareCharacter(character) {
   const copy = structuredClone(character || {})
   const legacyId = String(copy.id || copy.legacyId || `CHR-${Date.now()}`)
@@ -409,17 +494,31 @@ async function readRows() {
   const result = await apiFetch(`${SHEETS_API}/${id}/values/${encodeSheetRange(sheetRange('A1:AA'))}`)
   const values = result.values || []
   return values.slice(1).map((row, index) => {
-    // Backward compatibility: old rows stored the entire JSON in C and timestamp in D.
-    const legacyRow = /^\d{4}-\d{2}-\d{2}T/.test(String(row[3] || ''))
-    const jsonText = legacyRow ? String(row[2] || '{}') : row.slice(2, 26).join('') || '{}'
     let content = {}
-    try { content = JSON.parse(jsonText || '{}') } catch { content = {} }
+    let updatedAt = ''
+    // Current broad-category schema: A:J, with one JSON object per major category.
+    if (isIsoTimestamp(String(row[9] || ''))) {
+      content = combineCategoryCells(row)
+      updatedAt = row[9] || ''
+    } else if (isIsoTimestamp(String(row[26] || ''))) {
+      // Backward compatibility: previous versions split one JSON string over C:Z and used AA for timestamp.
+      const jsonText = row.slice(2, 26).join('') || '{}'
+      try { content = JSON.parse(jsonText) } catch { content = {} }
+      updatedAt = row[26] || ''
+    } else if (isIsoTimestamp(String(row[3] || ''))) {
+      // Backward compatibility: older versions stored the entire JSON in C and timestamp in D.
+      try { content = JSON.parse(String(row[2] || '{}')) } catch { content = {} }
+      updatedAt = row[3] || ''
+    } else {
+      // Best-effort compatibility for a row with a valid single-cell JSON but a missing timestamp.
+      try { content = JSON.parse(String(row[2] || '{}')) } catch { content = {} }
+    }
     return {
       rowNumber: index + 2,
       id: String(row[0] || ''),
       title: row[1] || '未命名角色',
-      content,
-      updatedAt: legacyRow ? row[3] || '' : row[26] || '',
+      content: cleanForStorage(content) || {},
+      updatedAt,
     }
   }).filter(row => row.id)
 }
@@ -436,12 +535,14 @@ async function saveOne(character) {
   const id = await ensureSpreadsheet()
   const rows = await readRows()
   const existing = rows.find(row => row.id === legacyId)
-  const jsonText = JSON.stringify(prepared)
-  const chunks = jsonText.match(new RegExp(`.{1,${JSON_CHUNK_SIZE}}`, 'gs')) || ['{}']
-  if (chunks.length > JSON_CHUNK_COUNT) {
-    throw new Error(`角色資料序列化後約 ${(jsonText.length / 1024).toFixed(0)} KB，超過目前試算表分欄儲存上限。請先縮小角色資料中的超大文字或圖片內容後再儲存。`)
+  const categories = partitionCharacter(prepared)
+  const categoryNames = ['basic_info_json', 'attributes_json', 'skills_json', 'story_json', 'items_weapons_json', 'extra_json', 'images_json']
+  const oversized = categories.findIndex(value => value.length > 49000)
+  if (oversized >= 0) {
+    throw new Error(`角色「${prepared.name || '未命名角色'}」的「${categoryNames[oversized]}」有 ${categories[oversized].length.toLocaleString()} 個字元，接近 Google Sheets 每格 50,000 字元上限。這次尚未寫入角色資料；請檢查該分類是否含有重複的原始 JSON。`)
   }
-  const values = [[legacyId, String(prepared.name || '未命名角色'), ...chunks, ...Array(Math.max(0, JSON_CHUNK_COUNT - chunks.length)).fill(''), new Date().toISOString()]]
+  const values = [[legacyId, String(prepared.name || '未命名角色'), ...categories, new Date().toISOString(), ...Array(17).fill('')]]
+  // A:AA is written once so legacy JSON fragments in K:AA are cleared for this row.
 
   let writeResult
   try {
@@ -480,7 +581,7 @@ async function saveOne(character) {
   }
   console.info('[Character Collection Room] Verified character row:', { id: legacyId, spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${id}/edit`, sheet: SHEET_NAME, row: confirmed.rowNumber })
   if (!confirmed.content || Object.keys(confirmed.content).length === 0) {
-    throw new Error(`試算表中找到角色 ID「${legacyId}」，但 content_json 欄位是空的。請確認 A:D 欄未被手動調整。`)
+    throw new Error(`試算表中找到角色 ID「${legacyId}」，但角色 JSON 分類欄位是空的。請確認 C:I 欄未被手動調整。`)
   }
   const hydrated = await hydrateCharacter(confirmed)
   return { ok: true, id: legacyId, character: hydrated }
