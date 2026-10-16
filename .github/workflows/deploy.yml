@@ -3,7 +3,7 @@ name: Deploy React site to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [google-drive-integration]
   workflow_dispatch:
 
 permissions:
