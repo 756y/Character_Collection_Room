@@ -113,6 +113,9 @@ async function apiFetch(url, options = {}) {
       throw new Error('Google Sheets API 或 Google Drive API 尚未啟用。請到 Google Cloud Console → APIs & Services → Library，確認 Google Sheets API 與 Google Drive API 都已啟用。')
     }
     if (response.status === 403 && /scope|permission|insufficient|caller does not have permission/i.test(detail)) {
+      if (url.startsWith(DRIVE_API)) {
+        throw new Error('Google Drive 權限不足，無法讀取文件名稱或刪除圖片。請確認目前登入帳號有權存取該檔案，OAuth 授權包含 drive.metadata.readonly（讀取名稱）及 drive.file（管理本應用程式建立的圖片），然後重新登入並同意授權。原始訊息：' + detail)
+      }
       throw new Error('Google 權限不足，無法讀寫角色文字。請確認 OAuth 要求包含 https://www.googleapis.com/auth/spreadsheets，並重新登入、在授權畫面同意新增權限。原始訊息：' + detail)
     }
     throw new Error(detail || `Google API 請求失敗（${response.status}）。`)
@@ -383,7 +386,8 @@ export async function getDriveFileInfo(value) {
   if (!id) throw new Error('這不是可辨識的 Google 文件／試算表連結。')
   const file = await apiFetch(`${DRIVE_API}/files/${encodeURIComponent(id)}?fields=id,name,mimeType,webViewLink,trashed`)
   if (file?.trashed) throw new Error('這個 Google 文件已移至垃圾桶。')
-  return { id: file.id, name: file.name || 'Google 文件', mimeType: file.mimeType || '', url: file.webViewLink || String(value).trim() }
+  if (!String(file?.name || '').trim()) throw new Error('Google Drive API 沒有回傳文件名稱，請確認檔案權限與 API 回應。')
+  return { id: file.id, name: file.name, mimeType: file.mimeType || '', url: file.webViewLink || String(value).trim() }
 }
 
 const CATEGORY_FIELDS = {
@@ -621,8 +625,27 @@ async function saveOne(character) {
   if (!confirmed.content || Object.keys(confirmed.content).length === 0) {
     throw new Error(`試算表中找到角色 ID「${legacyId}」，但角色 JSON 分類欄位是空的。請確認 C:I 欄未被手動調整。`)
   }
+  // After the new row is confirmed, remove only old Drive images no longer referenced
+  // by any character. This also covers removing one image while keeping the character.
+  let imageCleanupWarning = ''
+  if (existing) {
+    const previousImageIds = collectDriveImageIds(existing.content)
+    const stillUsedImageIds = new Set()
+    for (const row of savedRows) collectDriveImageIds(row.content, stillUsedImageIds)
+    const removableImageIds = [...previousImageIds].filter(fileId => !stillUsedImageIds.has(fileId))
+    const failures = []
+    for (const fileId of removableImageIds) {
+      try {
+        await apiFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}`, { method: 'DELETE' })
+      } catch (error) {
+        console.error('[Character Collection Room] Failed to delete removed image from Google Drive:', fileId, error)
+        failures.push(`${fileId}: ${error?.message || String(error)}`)
+      }
+    }
+    if (failures.length) imageCleanupWarning = `角色資料已保存，但有 ${failures.length} 張已移除的圖片未能從 Google Drive 刪除。請確認 Drive 權限；詳情請查看瀏覽器主控台。`
+  }
   const hydrated = await hydrateCharacter(confirmed)
-  return { ok: true, id: legacyId, character: hydrated }
+  return { ok: true, id: legacyId, character: hydrated, ...(imageCleanupWarning ? { warning: imageCleanupWarning } : {}) }
 }
 
 function collectDriveImageIds(value, ids = new Set()) {
