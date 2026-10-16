@@ -20,6 +20,7 @@ let currentProfile = null
 let rootFolderId = null
 let spreadsheetId = null
 let imageFolderId = null
+let spreadsheetReady = false
 let tokenClient = null
 let scriptPromise = null
 const imageObjectUrls = new Set()
@@ -229,6 +230,7 @@ async function markSpreadsheet(fileId, rootId) {
 }
 
 async function ensureSpreadsheet() {
+  if (spreadsheetId && spreadsheetReady) return spreadsheetId
   const rootId = await ensureRootFolder()
   if (!spreadsheetId) {
     // Prefer the expected spreadsheet already inside this app's folder, so the
@@ -266,6 +268,7 @@ async function ensureSpreadsheet() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ values: [[...HEADERS, ...Array(27 - HEADERS.length).fill('')]] }),
   })
+  spreadsheetReady = true
   return spreadsheetId
 }
 
@@ -292,6 +295,7 @@ export async function signOutGoogle() {
   currentProfile = null
   rootFolderId = null
   spreadsheetId = null
+  spreadsheetReady = false
   imageFolderId = null
   imageObjectUrls.forEach(url => URL.revokeObjectURL(url))
   imageObjectUrls.clear()
@@ -356,6 +360,10 @@ async function resolveImage(value) {
   const url = URL.createObjectURL(blob)
   imageObjectUrls.add(url)
   return url
+}
+
+export async function resolveDriveImage(value) {
+  return resolveImage(value)
 }
 
 const CATEGORY_FIELDS = {
@@ -523,10 +531,20 @@ async function readRows() {
   }).filter(row => row.id)
 }
 
-export async function listCharacters() {
+export async function listCharacters(options = {}) {
   await ensureSpreadsheet()
   const rows = await readRows()
-  return Promise.all(rows.map(hydrateCharacter))
+  const hydrateId = String(options?.hydrateId || '')
+  // The gallery only needs text and Drive IDs. Download binary images only for the
+  // character currently being edited; gallery thumbnails are resolved on demand.
+  return Promise.all(rows.map(row => {
+    if (hydrateId && (row.id === hydrateId || row.content?.legacyId === hydrateId || row.content?.id === hydrateId)) return hydrateCharacter(row)
+    const character = { ...(row.content || {}) }
+    character.id = character.legacyId || row.id
+    character.cloudDbId = row.rowNumber
+    character.name = character.name || row.title || '未命名角色'
+    return character
+  }))
 }
 
 async function saveOne(character) {
@@ -587,21 +605,59 @@ async function saveOne(character) {
   return { ok: true, id: legacyId, character: hydrated }
 }
 
+function collectDriveImageIds(value, ids = new Set()) {
+  if (typeof value === 'string') {
+    const match = value.match(/^drive:\/\/([^\s"'<>\],}]+)/)
+    if (match) ids.add(match[1])
+  } else if (Array.isArray(value)) {
+    value.forEach(item => collectDriveImageIds(item, ids))
+  } else if (value && typeof value === 'object') {
+    Object.values(value).forEach(item => collectDriveImageIds(item, ids))
+  }
+  return ids
+}
+
+async function deleteCharacterImagesIfUnused(deletedRow, rows) {
+  const candidateIds = collectDriveImageIds(deletedRow?.content)
+  if (!candidateIds.size) return { deleted: 0, warning: '' }
+  const stillUsed = new Set()
+  for (const row of rows) {
+    if (row.id !== deletedRow.id) collectDriveImageIds(row.content, stillUsed)
+  }
+  const removable = [...candidateIds].filter(id => !stillUsed.has(id))
+  const failures = []
+  let deleted = 0
+  for (const fileId of removable) {
+    try {
+      await apiFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}`, { method: 'DELETE' })
+      deleted += 1
+    } catch (error) {
+      failures.push(`${fileId}: ${error?.message || String(error)}`)
+    }
+  }
+  return {
+    deleted,
+    warning: failures.length ? `角色已刪除，但有 ${failures.length} 張圖片未能從 Google Drive 刪除。可稍後手動清理。` : '',
+  }
+}
+
 export async function syncCharacters(action, payload, currentCharacters = []) {
   await ensureSpreadsheet()
   if (action === 'delete') {
     const legacyId = String(payload?.id || '')
     const rows = await readRows()
-    const row = rows.find(item => item.id === legacyId)
-    if (row) {
-      const sheetId = await getDefaultSheetId()
-      await apiFetch(`${SHEETS_API}/${spreadsheetId}:batchUpdate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: row.rowNumber - 1, endIndex: row.rowNumber } } }] }),
-      })
-    }
-    return { ok: true }
+    const row = rows.find(item => item.id === legacyId || item.content?.legacyId === legacyId || item.content?.id === legacyId)
+    if (!row) return { ok: true, deletedImages: 0 }
+    const sheetId = await getDefaultSheetId()
+    await apiFetch(`${SHEETS_API}/${spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: row.rowNumber - 1, endIndex: row.rowNumber } } }] }),
+    })
+    // Remove only images no other character references. The sheet row is deleted
+    // first, so a Drive cleanup failure cannot resurrect the character.
+    const imageCleanup = await deleteCharacterImagesIfUnused(row, rows)
+    return { ok: true, deletedImages: imageCleanup.deleted, warning: imageCleanup.warning }
   }
   if (action === 'import' && Array.isArray(payload)) {
     const results = []

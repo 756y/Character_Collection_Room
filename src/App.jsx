@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { listCharacters, signInWithGoogle, signOutGoogle, syncCharacters } from './lib/googleDrive'
+import { listCharacters, resolveDriveImage, signInWithGoogle, signOutGoogle, syncCharacters } from './lib/googleDrive'
 
 export default function App() {
   const [profile, setProfile] = useState(null)
@@ -32,7 +32,8 @@ export default function App() {
     }
     window.__characterCloud = {
       email: profile.email || '',
-      list: () => listCharacters(),
+      list: (options) => listCharacters(options),
+      resolveImage: (value) => resolveDriveImage(value),
       sync: (action, payload, currentCharacters) => syncCharacters(action, payload, currentCharacters),
     }
     const onMessage = async (event) => {

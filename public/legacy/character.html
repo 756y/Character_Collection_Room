@@ -87,6 +87,10 @@ const IN_APPS_SCRIPT=!!(window.google&&google.script&&google.script.run);
 const DEFAULT_CHARACTER_ID='CHR-000001';
 const DEFAULT_CHARACTER_NAME='朝倉 森屋（あさくら もりや）';
 let characters=[];
+let cloudLoadVersion=0;
+const driveImageCache=new Map();
+const driveImagePending=new Map();
+let driveImageObserver=null;
 // 不以瀏覽器本機資料作為角色來源；只有成功從目前登入者的雲端讀取後才填入清單。
 const isOldDefaultCharacter=c=>!!c&&c.name===DEFAULT_CHARACTER_NAME&&(c.seed===true||c.id===DEFAULT_CHARACTER_ID);
 let currentFilter='all', editingId=null, viewingId=null;
@@ -130,7 +134,27 @@ function carouselMarkup(images,key,alt){
  const isCard=key.startsWith('card:');
  const controls=list.length>1&&!isCard?`<span class="carousel-count">${idx+1} / ${list.length}</span>`:'';
  const arrows=list.length>1&&getImageArrowPreference()?`<button type="button" class="carousel-nav carousel-prev" aria-label="上一張圖片" onclick="event.stopPropagation();changeCharacterImage('${esc(key)}',-1)">‹</button><button type="button" class="carousel-nav carousel-next" aria-label="下一張圖片" onclick="event.stopPropagation();changeCharacterImage('${esc(key)}',1)">›</button>`:'';
- return `<div class="image-carousel" data-carousel-key="${esc(key)}" data-carousel-count="${list.length}"><img src="${esc(list[idx])}" alt="${esc(alt||'角色圖片')}">${arrows}${controls}</div>`;
+ const selected=list[idx];
+ const driveId=typeof selected==='string'&&selected.startsWith('drive://')?selected.slice('drive://'.length):'';
+ const cached=driveId?driveImageCache.get(driveId):'';
+ const imgSrc=driveId?(cached||'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='):selected;
+ const driveAttr=driveId&&!cached?` data-drive-id="${esc(driveId)}"` : '';
+ return `<div class="image-carousel" data-carousel-key="${esc(key)}" data-carousel-count="${list.length}"><img${driveAttr} src="${esc(imgSrc)}" alt="${esc(alt||'角色圖片')}" loading="lazy">${arrows}${controls}</div>`;
+}
+function loadDriveImageElement(img){
+ const id=img?.dataset?.driveId;if(!id)return;
+ if(driveImageCache.has(id)){img.src=driveImageCache.get(id);img.removeAttribute('data-drive-id');return;}
+ if(driveImagePending.has(id)){driveImagePending.get(id).then(url=>{if(url&&img.isConnected){img.src=url;img.removeAttribute('data-drive-id')}});return;}
+ const bridge=getCharacterCloudBridge();if(!bridge||typeof bridge.resolveImage!=='function')return;
+ const promise=bridge.resolveImage('drive://'+id).then(url=>{driveImageCache.set(id,url);return url}).catch(error=>{console.warn('角色圖片載入失敗',id,error);return ''}).finally(()=>driveImagePending.delete(id));
+ driveImagePending.set(id,promise);promise.then(url=>{if(url&&img.isConnected){img.src=url;img.removeAttribute('data-drive-id')}});
+}
+function hydrateVisibleDriveImages(){
+ const images=document.querySelectorAll('img[data-drive-id]');
+ if(!images.length)return;
+ if(!('IntersectionObserver' in window)){images.forEach(loadDriveImageElement);return;}
+ if(!driveImageObserver)driveImageObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{if(entry.isIntersecting){driveImageObserver.unobserve(entry.target);loadDriveImageElement(entry.target)}}),{rootMargin:'180px'});
+ images.forEach(img=>{if(driveImageCache.has(img.dataset.driveId)){img.src=driveImageCache.get(img.dataset.driveId);img.removeAttribute('data-drive-id')}else driveImageObserver.observe(img)});
 }
 function changeCharacterImage(key,delta){
  const node=Array.from(document.querySelectorAll('.image-carousel[data-carousel-key]')).find(n=>n.dataset.carouselKey===key);
@@ -222,6 +246,7 @@ function render(){
  }).join('');
  fitTagBadges();
  bindImageSwipe();
+ hydrateVisibleDriveImages();
 }
 function openModal(title,html){$('modalTitle').textContent=title;$('modalContent').innerHTML=html;$('modalBackdrop').classList.add('open')}
 function closeModal(){if(isEditorPage){cancelEditor();return}$('modalBackdrop').classList.remove('open');editingId=null;viewingId=null}
@@ -274,7 +299,21 @@ function saveCharacter(){
  if(old){characters=characters.map(x=>x.id===old.id?c:x)}else{characters.unshift(c)}
  saveLocal();window._pendingFetchedCharacter=null;if(isEditorPage){const savedMessage=old?'角色已更新並同步至 Google Sheets':'角色已新增並同步至 Google Sheets';toast(savedMessage);const syncPromise=syncIfConfigured('upsert',c);syncPromise.then(result=>{if(result?.ok){if(window.opener&&!window.opener.closed){window.close();setTimeout(()=>{if(!window.closed)navigateToGallery()},150)}else navigateToGallery()}else{toast('角色文字未寫入 Google 試算表；請保留此頁，並依「雲端同步失敗」訊息檢查原因。')}});}else{closeModal();render();toast(old?'角色已更新':'角色已新增');syncIfConfigured('upsert',c);}
 }
-function deleteCharacter(id){if(!confirm('確定要刪除這張角色卡？此操作無法復原。'))return;characters=characters.filter(c=>c.id!==id);saveLocal();if(isEditorPage){toast('角色已刪除');syncIfConfigured('delete',{id}).catch(()=>{});setTimeout(()=>{if(window.opener&&!window.opener.closed){window.close();setTimeout(()=>{if(!window.closed)navigateToGallery()},150)}else navigateToGallery()},250);return}closeModal();render();toast('角色已刪除');syncIfConfigured('delete',{id})}
+async function deleteCharacter(id){
+ if(!confirm('確定要刪除這張角色卡？角色專屬且未被其他角色使用的 Google Drive 圖片也會一併刪除。此操作無法復原。'))return;
+ characters=characters.filter(c=>c.id!==id);saveLocal();cloudLoadVersion++;
+ if(isEditorPage){
+  toast('正在刪除角色與雲端圖片…');
+  const result=await syncIfConfigured('delete',{id});
+  if(!result?.ok){toast('雲端刪除未完成，請確認網路後重試。');return;}
+  if(window.opener&&!window.opener.closed){window.close();setTimeout(()=>{if(!window.closed)navigateToGallery()},150)}else navigateToGallery();
+  return;
+ }
+ closeModal();render();toast('正在同步刪除…');
+ const result=await syncIfConfigured('delete',{id});
+ if(!result?.ok){await loadCloudCharacters();return;}
+ if(result.warning)toast(result.warning);else toast('角色已刪除，清單已同步');
+}
 function toggleFavorite(id){characters=characters.map(c=>c.id===id?{...c,favorite:!c.favorite,updatedAt:new Date().toISOString()}:c);saveLocal();render();syncIfConfigured('upsert',{id})}
 async function syncIfConfigured(action,payload){
  if(IN_APPS_SCRIPT){
@@ -293,8 +332,8 @@ async function syncIfConfigured(action,payload){
     characters=exists?characters.map(item=>String(item.id)===String(result.id)?result.character:item):[result.character,...characters];
     if(!isEditorPage)render();
    }
-   if(!isEditorPage && action==='delete') await loadCloudCharacters();
-   toast('已同步雲端');
+   if(result.warning) toast(result.warning);
+   else toast('已同步雲端');
   }
   if(result && result.ok===false){
    toast(result.error || 'Google 雲端儲存失敗；目前編輯內容已保留。');
@@ -310,9 +349,10 @@ async function syncIfConfigured(action,payload){
 function openEditorAfterLoad(){if(isEditorPage)openEditor(editorTargetId||undefined)}
 window.addEventListener('focus',()=>{if(!isEditorPage && document.visibilityState==='visible' && getCharacterCloudBridge())loadCloudCharacters()});
 async function loadCloudCharacters(){
+ const loadVersion=++cloudLoadVersion;
  if(IN_APPS_SCRIPT){
-  google.script.run.withSuccessHandler(list=>{characters=Array.isArray(list)?list:[];render();openEditorAfterLoad()})
-   .withFailureHandler(err=>{characters=[];render();toast('資料庫載入失敗：'+(err?.message||err));openEditorAfterLoad()}).loadCharactersFromSheet();
+  google.script.run.withSuccessHandler(list=>{if(loadVersion!==cloudLoadVersion)return;characters=Array.isArray(list)?list:[];render();openEditorAfterLoad()})
+   .withFailureHandler(err=>{if(loadVersion!==cloudLoadVersion)return;characters=[];render();toast('資料庫載入失敗：'+(err?.message||err));openEditorAfterLoad()}).loadCharactersFromSheet();
   return;
  }
  const bridge=getCharacterCloudBridge();
@@ -322,12 +362,14 @@ async function loadCloudCharacters(){
  try{
   if(typeof bridge.list!=='function')throw new Error('目前網站的雲端橋接版本過舊，請重新部署 GitHub Pages。');
   // 僅讀取目前登入帳號的資料；絕不把任何本機資料匯入資料庫。
-  const result=await bridge.list();
+  const result=await bridge.list(isEditorPage&&editorTargetId?{hydrateId:editorTargetId}:{});
+  if(loadVersion!==cloudLoadVersion)return;
   if(!Array.isArray(result))throw new Error('資料庫回傳格式不正確。');
   characters=result;
   render();
   if(!result.length)toast('資料庫已成功連線，但這個登入帳號目前沒有角色資料。');
  }catch(error){
+  if(loadVersion!==cloudLoadVersion)return;
   characters=[];render();toast('資料庫載入失敗（未使用本機資料）：'+(error?.message||String(error)));return;
  }
  openEditorAfterLoad();
