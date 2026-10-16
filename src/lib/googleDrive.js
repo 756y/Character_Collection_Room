@@ -48,6 +48,174 @@ let spreadsheetReady = false
 let tokenClient = null
 let scriptPromise = null
 const imageObjectUrls = new Set()
+const resolvedImageUrlCache = new Map()
+
+// 圖片快取只供畫面預覽使用；角色清單與圖片正式內容仍以 Google Sheets / Drive 為準。
+// IndexedDB 適合儲存圖片 Blob，容量也遠高於 localStorage。
+const IMAGE_CACHE_DB_NAME = 'character-room-drive-image-cache-v1'
+const IMAGE_CACHE_STORE_NAME = 'images'
+const IMAGE_CACHE_MAX_BYTES = 160 * 1024 * 1024
+const IMAGE_CACHE_MAX_ENTRIES = 250
+let imageCacheDbPromise = null
+
+function openImageCacheDb() {
+  if (typeof indexedDB === 'undefined') return Promise.resolve(null)
+  if (imageCacheDbPromise) return imageCacheDbPromise
+  imageCacheDbPromise = new Promise(resolve => {
+    let request
+    try {
+      request = indexedDB.open(IMAGE_CACHE_DB_NAME, 1)
+    } catch {
+      resolve(null)
+      return
+    }
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains(IMAGE_CACHE_STORE_NAME)) {
+        const store = db.createObjectStore(IMAGE_CACHE_STORE_NAME, { keyPath: 'key' })
+        store.createIndex('lastUsed', 'lastUsed', { unique: false })
+      }
+    }
+    request.onsuccess = () => {
+      const db = request.result
+      db.onversionchange = () => db.close()
+      resolve(db)
+    }
+    request.onerror = () => resolve(null)
+    request.onblocked = () => resolve(null)
+  }).catch(() => null)
+  return imageCacheDbPromise
+}
+
+function getImageCacheAccount() {
+  let email = String(currentProfile?.email || '').trim().toLowerCase()
+  if (!email) {
+    try { email = String(localStorage.getItem('ccr_google_account_email') || '').trim().toLowerCase() } catch { /* 本機儲存可能不可用 */ }
+  }
+  return email || 'current-account'
+}
+
+function getImageCacheKey(fileId) {
+  return `${getImageCacheAccount()}::${String(fileId || '')}`
+}
+
+async function readCachedImageBlob(fileId) {
+  const db = await openImageCacheDb()
+  if (!db) return null
+  const key = getImageCacheKey(fileId)
+  return new Promise(resolve => {
+    let cachedBlob = null
+    try {
+      const tx = db.transaction(IMAGE_CACHE_STORE_NAME, 'readwrite')
+      const store = tx.objectStore(IMAGE_CACHE_STORE_NAME)
+      const request = store.get(key)
+      request.onsuccess = () => {
+        const record = request.result
+        if (record?.blob && typeof record.blob.size === 'number' && record.blob.size > 0) {
+          cachedBlob = record.blob
+          try { store.put({ ...record, lastUsed: Date.now() }) } catch { /* 更新使用時間失敗不影響讀取 */ }
+        }
+      }
+      tx.oncomplete = () => resolve(cachedBlob)
+      tx.onerror = () => resolve(cachedBlob)
+      tx.onabort = () => resolve(cachedBlob)
+    } catch {
+      resolve(null)
+    }
+  })
+}
+
+async function trimImageCache() {
+  const db = await openImageCacheDb()
+  if (!db) return
+  const records = await new Promise(resolve => {
+    const found = []
+    try {
+      const tx = db.transaction(IMAGE_CACHE_STORE_NAME, 'readonly')
+      const request = tx.objectStore(IMAGE_CACHE_STORE_NAME).openCursor()
+      request.onsuccess = () => {
+        const cursor = request.result
+        if (!cursor) return
+        const record = cursor.value || {}
+        found.push({ key: record.key, size: Number(record.size || record.blob?.size || 0), lastUsed: Number(record.lastUsed || record.savedAt || 0) })
+        cursor.continue()
+      }
+      tx.oncomplete = () => resolve(found)
+      tx.onerror = () => resolve(found)
+      tx.onabort = () => resolve(found)
+    } catch {
+      resolve(found)
+    }
+  })
+  let totalBytes = records.reduce((sum, item) => sum + item.size, 0)
+  const oldestFirst = records.slice().sort((a, b) => a.lastUsed - b.lastUsed)
+  const removeKeys = []
+  while (oldestFirst.length && (totalBytes > IMAGE_CACHE_MAX_BYTES || records.length - removeKeys.length > IMAGE_CACHE_MAX_ENTRIES)) {
+    const oldest = oldestFirst.shift()
+    removeKeys.push(oldest.key)
+    totalBytes -= oldest.size
+  }
+  if (!removeKeys.length) return
+  await new Promise(resolve => {
+    try {
+      const tx = db.transaction(IMAGE_CACHE_STORE_NAME, 'readwrite')
+      const store = tx.objectStore(IMAGE_CACHE_STORE_NAME)
+      removeKeys.forEach(key => store.delete(key))
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => resolve()
+      tx.onabort = () => resolve()
+    } catch {
+      resolve()
+    }
+  })
+}
+
+async function storeCachedImageBlob(fileId, blob) {
+  if (!blob || typeof blob.size !== 'number' || blob.size <= 0) return
+  const db = await openImageCacheDb()
+  if (!db) return
+  const now = Date.now()
+  const record = {
+    key: getImageCacheKey(fileId),
+    fileId: String(fileId),
+    account: getImageCacheAccount(),
+    blob,
+    size: blob.size,
+    savedAt: now,
+    lastUsed: now,
+  }
+  const saved = await new Promise(resolve => {
+    try {
+      const tx = db.transaction(IMAGE_CACHE_STORE_NAME, 'readwrite')
+      tx.objectStore(IMAGE_CACHE_STORE_NAME).put(record)
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => resolve(false)
+      tx.onabort = () => resolve(false)
+    } catch {
+      resolve(false)
+    }
+  })
+  if (saved) await trimImageCache()
+}
+
+async function deleteCachedImageBlob(fileId) {
+  const key = getImageCacheKey(fileId)
+  // 不立刻 revoke 已經掛在畫面上的 Object URL；只阻止後續重用並清除持久快取。
+  resolvedImageUrlCache.delete(key)
+  const db = await openImageCacheDb()
+  if (!db) return
+  await new Promise(resolve => {
+    try {
+      const tx = db.transaction(IMAGE_CACHE_STORE_NAME, 'readwrite')
+      tx.objectStore(IMAGE_CACHE_STORE_NAME).delete(key)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => resolve()
+      tx.onabort = () => resolve()
+    } catch {
+      resolve()
+    }
+  })
+}
 
 function loadGoogleIdentityScript() {
   if (window.google?.accounts?.oauth2) return Promise.resolve()
@@ -356,6 +524,7 @@ export async function signOutGoogle() {
   imageFolderId = null
   imageObjectUrls.forEach(url => URL.revokeObjectURL(url))
   imageObjectUrls.clear()
+  resolvedImageUrlCache.clear()
   if (token && window.google?.accounts?.oauth2?.revoke) {
     await new Promise(resolve => window.google.accounts.oauth2.revoke(token, () => resolve()))
   }
@@ -412,10 +581,22 @@ async function uploadImage(dataUrl, characterId, index) {
 async function resolveImage(value) {
   if (typeof value !== 'string' || !value.startsWith('drive://')) return value
   const id = value.slice('drive://'.length)
-  const response = await apiFetch(`${DRIVE_API}/files/${encodeURIComponent(id)}?alt=media`)
-  const blob = await response.blob()
+  const key = getImageCacheKey(id)
+
+  // 同一個登入階段先重用記憶體中的 Object URL；重新進入頁面時則讀取 IndexedDB。
+  const memoryUrl = resolvedImageUrlCache.get(key)
+  if (memoryUrl) return memoryUrl
+
+  let blob = await readCachedImageBlob(id)
+  if (!blob) {
+    const response = await apiFetch(`${DRIVE_API}/files/${encodeURIComponent(id)}?alt=media`)
+    blob = await response.blob()
+    // 圖片下載成功才存進本機快取。快取失敗不會影響雲端讀取或圖片顯示。
+    await storeCachedImageBlob(id, blob)
+  }
   const url = URL.createObjectURL(blob)
   imageObjectUrls.add(url)
+  resolvedImageUrlCache.set(key, url)
   return url
 }
 
@@ -563,27 +744,18 @@ async function prepareCharacter(character) {
 
 async function hydrateCharacter(row) {
   const character = { ...(row.content || {}) }
-  // 圖片只從 images 讀取，不再處理其他圖片欄位。
+  // 只帶入雲端圖片 ID，不在開啟角色頁時一次下載全部圖片；畫面顯示時會按需讀取本機快取。
   character.images = [...new Set((Array.isArray(character.images) ? character.images : []).filter(value => typeof value === 'string' && value.trim()))]
   delete character.portraitUrl
   delete character.originalImageUrl
   character.id = character.legacyId || row.id
   character.cloudDbId = row.rowNumber
   character.name = character.name || row.title || '未命名角色'
+  // 儲存時沿用既有 Drive ID；不因為使用本機圖片快取而重新上傳。
   const imageMap = {}
-  const resolvedByDriveId = new Map()
-  const resolveAndRemember = async value => {
-    if (typeof value !== 'string' || !value.startsWith('drive://')) return value
-    const id = value.slice('drive://'.length)
-    let resolved = resolvedByDriveId.get(id)
-    if (!resolved) {
-      resolved = await resolveImage(value)
-      resolvedByDriveId.set(id, resolved)
-    }
-    imageMap[resolved] = id
-    return resolved
-  }
-  if (Array.isArray(character.images)) character.images = await Promise.all(character.images.map(resolveAndRemember))
+  character.images.forEach(value => {
+    if (typeof value === 'string' && value.startsWith('drive://')) imageMap[value] = value.slice('drive://'.length)
+  })
   character._cloudImageMap = imageMap
   return character
 }
@@ -634,8 +806,7 @@ export async function listCharacters(options = {}) {
   await ensureSpreadsheet()
   const rows = await readRows()
   const hydrateId = String(options?.hydrateId || '')
-  // The gallery only needs text and Drive IDs. Download binary images only for the
-  // character currently being edited; gallery thumbnails are resolved on demand.
+  // 清單只讀取文字與 Drive ID；圖片縮圖由 legacy 畫面依可見範圍按需載入，Blob 會持久快取於 IndexedDB。
   return Promise.all(rows.map(row => {
     if (hydrateId && (row.id === hydrateId || row.content?.legacyId === hydrateId || row.content?.id === hydrateId)) return hydrateCharacter(row)
     const character = { ...(row.content || {}) }
@@ -737,6 +908,7 @@ async function saveOne(character) {
     const currentImageIds = collectDriveImageIds(confirmed.content)
     const removableImageIds = [...previousImageIds].filter(fileId => !currentImageIds.has(fileId))
     const cleanupResults = await Promise.allSettled(removableImageIds.map(fileId => apiFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}`, { method: 'DELETE' })))
+    await Promise.all(removableImageIds.map(fileId => deleteCachedImageBlob(fileId)))
     const failures = cleanupResults.filter(result => result.status === 'rejected')
     if (failures.length) imageCleanupWarning = `角色資料已保存，但有 ${failures.length} 張已移除的圖片未能從 Google Drive 刪除。請確認 Drive 權限；詳情請查看瀏覽器主控台。`
   }
@@ -761,9 +933,14 @@ async function deleteCharacterImages(deletedRow) {
   // 多張圖片並行刪除，避免逐張等待網路回應；失敗仍會回報，不會假裝已刪除。
   const candidateIds = [...collectDriveImageIds(deletedRow?.content)]
   if (!candidateIds.length) return { deleted: 0, warning: '' }
-  const results = await Promise.allSettled(candidateIds.map(fileId =>
-    apiFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}`, { method: 'DELETE' })
-  ))
+  const results = await Promise.allSettled(candidateIds.map(async fileId => {
+    try {
+      return await apiFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}`, { method: 'DELETE' })
+    } finally {
+      // 即使 Drive 刪除要求失敗，角色已從清單移除，也不要繼續保留未引用的預覽快取。
+      await deleteCachedImageBlob(fileId)
+    }
+  }))
   const deleted = results.filter(result => result.status === 'fulfilled').length
   const failures = results.length - deleted
   return {
