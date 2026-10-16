@@ -6,6 +6,12 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [restoringSession, setRestoringSession] = useState(true)
+  const [legacyRoute, setLegacyRoute] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ccr_legacy_route') || 'index.html'
+      return /^(index\.html|character\.html(?:\?id=[A-Za-z0-9_-]+)?)$/.test(saved) ? saved : 'index.html'
+    } catch { return 'index.html' }
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -51,6 +57,8 @@ export default function App() {
       if (event.origin !== window.location.origin) return
       if (event.data?.type === 'CHARACTER_ROOM_LOGOUT') {
         await signOutGoogle()
+        try { localStorage.removeItem('ccr_legacy_route') } catch { /* storage may be unavailable */ }
+        setLegacyRoute('index.html')
         setProfile(null)
       }
     }
@@ -81,7 +89,16 @@ export default function App() {
           <iframe
             className="collection-frame"
             title="角色收藏室"
-            src={`${import.meta.env.BASE_URL}legacy/index.html`}
+            src={`${import.meta.env.BASE_URL}legacy/${legacyRoute}`}
+            onLoad={(event) => {
+              try {
+                const url = new URL(event.currentTarget.contentWindow.location.href)
+                const route = url.pathname.endsWith('/character.html')
+                  ? `character.html${url.searchParams.get('id') ? `?id=${encodeURIComponent(url.searchParams.get('id'))}` : ''}`
+                  : 'index.html'
+                localStorage.setItem('ccr_legacy_route', route)
+              } catch { /* ignore transient iframe navigation */ }
+            }}
             allow="clipboard-read; clipboard-write"
           />
         </section>

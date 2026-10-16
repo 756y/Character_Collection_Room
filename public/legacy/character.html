@@ -38,7 +38,7 @@ body.editor-mode{background:var(--bg)}body.editor-mode .wrap{display:none}body.e
 }
 
 .image-carousel{position:relative;width:100%;height:100%;min-height:inherit;overflow:hidden;touch-action:pan-y;background:#eee5d8;display:grid;place-items:center}
-.image-carousel img{display:block;width:100%;height:100%;object-fit:contain}
+.image-carousel img{display:block;width:100%;height:100%;object-fit:contain;transition:opacity .18s ease}.image-carousel img.drive-image-pending{opacity:0}.image-carousel:has(img.drive-image-pending){background:linear-gradient(110deg,#eee5d8 8%,#f7f2ea 18%,#eee5d8 33%);background-size:200% 100%;animation:driveImageShimmer 1.25s linear infinite}@keyframes driveImageShimmer{to{background-position-x:-200%}}
 .image-carousel .carousel-nav{position:absolute;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:34px;height:34px;padding:0;border-radius:50%;background:#202127a8;color:white;font-size:20px;z-index:2}
 .image-carousel .carousel-prev{left:8px}.image-carousel .carousel-next{right:8px}
 .image-carousel .carousel-count{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);padding:4px 9px;border-radius:999px;background:#202127b8;color:#fff;font-size:11px;z-index:2;white-space:nowrap}
@@ -90,6 +90,21 @@ const DEFAULT_CHARACTER_ID='CHR-000001';
 const DEFAULT_CHARACTER_NAME='朝倉 森屋（あさくら もりや）';
 let characters=[];
 let cloudLoadVersion=0;
+const CHARACTER_CACHE_PREFIX='ccr_character_cache_v1:';
+let editorOpened=false;
+function characterCacheKey(){
+ let email='';
+ try{email=(localStorage.getItem('ccr_google_account_email')||'').trim().toLowerCase()}catch(e){}
+ if(!email)email=String(getCurrentAccountEmail()||'').trim().toLowerCase();
+ return CHARACTER_CACHE_PREFIX+(email||'current-account');
+}
+function readCharacterCache(){
+ try{const raw=localStorage.getItem(characterCacheKey());const value=raw?JSON.parse(raw):null;return Array.isArray(value)?value:null}catch(e){return null}
+}
+function writeCharacterCache(){
+ try{localStorage.setItem(characterCacheKey(),JSON.stringify(characters))}catch(e){console.info('[CCR] 本機快取空間不足，這次只使用雲端資料。')}
+}
+
 const driveImageCache=new Map();
 const driveImagePending=new Map();
 let driveImageObserver=null;
@@ -98,7 +113,7 @@ const isOldDefaultCharacter=c=>!!c&&c.name===DEFAULT_CHARACTER_NAME&&(c.seed===t
 let currentFilter='all', editingId=null, viewingId=null;
 let editorDirty=false, editorSaving=false, discardingEditorChanges=false;
 const $=id=>document.getElementById(id);
-function saveLocal(){ /* intentionally disabled: character data is cloud-only */ }
+function saveLocal(){ writeCharacterCache(); /* cache is for instant display only; Google Sheets remains the source of truth */ }
 function getCharacterCloudBridge(){
  // The editor may be nested more than one iframe deep. Search every same-origin ancestor,
  // not only the immediate parent, because the React app publishes the bridge on its own window.
@@ -170,16 +185,64 @@ function carouselMarkup(images,key,alt){
  const driveId=typeof selected==='string'&&selected.startsWith('drive://')?selected.slice('drive://'.length):'';
  const cached=driveId?driveImageCache.get(driveId):'';
  const imgSrc=driveId?(cached||'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='):selected;
- const driveAttr=driveId&&!cached?` data-drive-id="${esc(driveId)}"` : '';
- return `<div class="image-carousel" data-carousel-key="${esc(key)}" data-carousel-count="${list.length}"><img${driveAttr} src="${esc(imgSrc)}" alt="${esc(alt||'角色圖片')}" loading="lazy">${arrows}${controls}</div>`;
+ const driveAttr=driveId&&!cached?` data-drive-id="${esc(driveId)}" class="drive-image-pending"` : '';
+ return `<div class="image-carousel" data-carousel-key="${esc(key)}" data-carousel-count="${list.length}"><img${driveAttr} src="${esc(imgSrc)}" alt="${esc(alt||'角色圖片')}" loading="lazy" decoding="async" fetchpriority="${isCard?'low':'high'}">${arrows}${controls}</div>`;
+}
+function applyResolvedDriveImage(img,url){
+ if(!img||!url)return;
+ const finish=()=>{img.classList.remove('drive-image-pending');img.removeAttribute('data-drive-id')};
+ img.addEventListener('load',finish,{once:true});
+ img.addEventListener('error',finish,{once:true});
+ img.src=url;
+ if(img.complete&&img.naturalWidth>0)finish();
+}
+function resolveDriveImage(id){
+ if(!id)return Promise.resolve('');
+ if(driveImageCache.has(id))return Promise.resolve(driveImageCache.get(id));
+ if(driveImagePending.has(id))return driveImagePending.get(id);
+ const bridge=getCharacterCloudBridge();
+ if(!bridge||typeof bridge.resolveImage!=='function')return Promise.resolve('');
+ const promise=bridge.resolveImage('drive://'+id)
+  .then(url=>{if(url)driveImageCache.set(id,url);return url||''})
+  .catch(error=>{console.warn('角色圖片載入失敗',id,error);return ''})
+  .finally(()=>driveImagePending.delete(id));
+ driveImagePending.set(id,promise);
+ return promise;
 }
 function loadDriveImageElement(img){
  const id=img?.dataset?.driveId;if(!id)return;
- if(driveImageCache.has(id)){img.src=driveImageCache.get(id);img.removeAttribute('data-drive-id');return;}
- if(driveImagePending.has(id)){driveImagePending.get(id).then(url=>{if(url&&img.isConnected){img.src=url;img.removeAttribute('data-drive-id')}});return;}
- const bridge=getCharacterCloudBridge();if(!bridge||typeof bridge.resolveImage!=='function')return;
- const promise=bridge.resolveImage('drive://'+id).then(url=>{driveImageCache.set(id,url);return url}).catch(error=>{console.warn('角色圖片載入失敗',id,error);return ''}).finally(()=>driveImagePending.delete(id));
- driveImagePending.set(id,promise);promise.then(url=>{if(url&&img.isConnected){img.src=url;img.removeAttribute('data-drive-id')}});
+ resolveDriveImage(id).then(url=>{if(url&&img.isConnected)applyResolvedDriveImage(img,url)});
+}
+// 預載採低併發、閒置時執行：先讓目前可見圖片顯示，再於背景暖好後續圖片。
+let drivePrefetchQueue=[],drivePrefetchRunning=0,drivePrefetchQueued=new Set();
+function enqueueDriveImagePrefetch(id){
+ if(!id||driveImageCache.has(id)||driveImagePending.has(id)||drivePrefetchQueued.has(id))return;
+ drivePrefetchQueued.add(id);drivePrefetchQueue.push(id);runDriveImagePrefetchQueue();
+}
+function runDriveImagePrefetchQueue(){
+ while(drivePrefetchRunning<2&&drivePrefetchQueue.length){
+  const id=drivePrefetchQueue.shift();drivePrefetchQueued.delete(id);
+  if(driveImageCache.has(id)||driveImagePending.has(id))continue;
+  drivePrefetchRunning++;
+  resolveDriveImage(id).finally(()=>{drivePrefetchRunning--;if(drivePrefetchQueue.length)runDriveImagePrefetchQueue()});
+ }
+}
+function scheduleBackgroundImagePrefetch(){
+ const ids=[];
+ const addImages=images=>(Array.isArray(images)?images:[]).forEach(src=>{
+  if(typeof src==='string'&&src.startsWith('drive://'))ids.push(src.slice('drive://'.length));
+ });
+ if(isEditorPage){
+  addImages(window._editingImages);
+  const target=characters.find(c=>String(c.id)===String(editorTargetId||editingId||viewingId||''));
+  if(target)addImages(effectiveImages(target));
+ }else{
+  characters.forEach(c=>addImages(effectiveImages(c)));
+ }
+ const unique=[...new Set(ids)];
+ const schedule=()=>unique.forEach(enqueueDriveImagePrefetch);
+ if('requestIdleCallback' in window)requestIdleCallback(schedule,{timeout:1800});
+ else setTimeout(schedule,450);
 }
 function hydrateVisibleDriveImages(){
  const images=document.querySelectorAll('img[data-drive-id]');
@@ -193,6 +256,7 @@ function changeCharacterImage(key,delta){
  const count=Number(node?.dataset.carouselCount||0);if(count<2)return;
  imageIndexes[key]=(((imageIndexes[key]||0)+delta)%count+count)%count;
  if(key==='editor')renderImageManager();else render();
+ scheduleBackgroundImagePrefetch();
 }
 let suppressCoverClickUntil=0;
 function bindImageSwipe(){
@@ -215,6 +279,8 @@ function renderImageManager(){
  imageIndexes.editor=idx;
  host.innerHTML=list.length?`${carouselMarkup(list,'editor','角色圖片')}<button class="image-remove-current" type="button" onclick="removeCharacterImage(${idx})">移除這張圖片</button>`:'<div class="image-help">目前沒有圖片，請使用下方「上傳圖片」新增。</div>';
  bindImageSwipe();
+ hydrateVisibleDriveImages();
+ scheduleBackgroundImagePrefetch();
 }
 function removeCharacterImage(index){editorDirty=true;window._editingImages=(window._editingImages||[]).filter((_,i)=>i!==index);imageIndexes.editor=Math.max(0,Math.min(index,imageIndexes.editor||0));renderImageManager();toast('已移除圖片');}
 async function optimizeImageFile(file){
@@ -285,6 +351,7 @@ function render(){
  fitTagBadges();
  bindImageSwipe();
  hydrateVisibleDriveImages();
+ scheduleBackgroundImagePrefetch();
 }
 function openModal(title,html){$('modalTitle').textContent=title;$('modalContent').innerHTML=html;$('modalBackdrop').classList.add('open')}
 function closeModal(){if(isEditorPage){cancelEditor();return}if($('f_name')){editorDirty=false;discardingEditorChanges=true} $('modalBackdrop').classList.remove('open');editingId=null;viewingId=null}
@@ -307,6 +374,7 @@ function openCharacterDocuments(id){const c=characters.find(item=>String(item.id
 function openCharacterDocumentAt(id,index){const c=characters.find(item=>String(item.id)===String(id));const doc=normalizeDocumentLinks(c?.documentLinks).filter(item=>/^https:\/\/(docs\.google\.com|drive\.google\.com)\//i.test(item.url))[index];if(!doc)return;window.open(doc.url,'_blank','noopener,noreferrer');closeModal()}
 function openCharacterSpreadsheet(id){const c=characters.find(item=>String(item.id)===String(id));const url=String(c?.sourceUrl||'').trim();if(!/^https:\/\/(docs\.google\.com|drive\.google\.com)\//i.test(url))return;window.open(url,'_blank','noopener,noreferrer')}
 function openEditor(id){
+ editorOpened=true;
  if(!isEditorPage){
   // 在同一個頁面導覽到編輯頁，讓瀏覽器原生「上一頁」返回角色清單。
   const target=new URL('./character.html',location.href);
@@ -406,18 +474,18 @@ async function syncIfConfigured(action,payload){
   return {ok:false,error:error?.message||String(error)}
  }
 }
-function openEditorAfterLoad(){if(isEditorPage)openEditor(editorTargetId||undefined)}
+function openEditorAfterLoad(){if(isEditorPage&&!editorOpened)openEditor(editorTargetId||undefined)}
 window.addEventListener('focus',()=>{if(!isEditorPage && document.visibilityState==='visible' && getCharacterCloudBridge())loadCloudCharacters()});
 async function loadCloudCharacters(){
  const loadVersion=++cloudLoadVersion;
  if(IN_APPS_SCRIPT){
-  google.script.run.withSuccessHandler(list=>{if(loadVersion!==cloudLoadVersion)return;characters=Array.isArray(list)?list:[];render();openEditorAfterLoad()})
-   .withFailureHandler(err=>{if(loadVersion!==cloudLoadVersion)return;characters=[];render();toast('資料庫載入失敗：'+(err?.message||err));openEditorAfterLoad()}).loadCharactersFromSheet();
+  google.script.run.withSuccessHandler(list=>{if(loadVersion!==cloudLoadVersion)return;characters=Array.isArray(list)?list:[];saveLocal();render();openEditorAfterLoad()})
+   .withFailureHandler(err=>{if(loadVersion!==cloudLoadVersion)return;if(!characters.length)characters=[];render();toast('資料庫載入失敗：'+(err?.message||err));openEditorAfterLoad()}).loadCharactersFromSheet();
   return;
  }
  const bridge=getCharacterCloudBridge();
  if(!bridge){
-  characters=[];render();toast('Google 雲端連線尚未就緒：請確認已登入 Google 帳號，然後重新整理頁面。');return;
+  if(!characters.length)render();toast('Google 雲端連線尚未就緒：正在等待登入連線，請稍候。');return;
  }
  try{
   if(typeof bridge.list!=='function')throw new Error('目前網站的雲端橋接版本過舊，請重新部署 GitHub Pages。');
@@ -426,11 +494,13 @@ async function loadCloudCharacters(){
   if(loadVersion!==cloudLoadVersion)return;
   if(!Array.isArray(result))throw new Error('資料庫回傳格式不正確。');
   characters=result;
+  saveLocal();
   render();
+  if(isEditorPage&&editorTargetId&&editorOpened&&!editorDirty){openEditor(editorTargetId);}
   if(!result.length)toast('資料庫已成功連線，但這個登入帳號目前沒有角色資料。');
  }catch(error){
   if(loadVersion!==cloudLoadVersion)return;
-  characters=[];render();toast('資料庫載入失敗（未使用本機資料）：'+(error?.message||String(error)));return;
+  if(!characters.length)render();toast('雲端更新失敗，先顯示上次快取的角色資料：'+(error?.message||String(error)));return;
  }
  openEditorAfterLoad();
 }
@@ -486,7 +556,15 @@ function setCurrentFilter(filter){
  document.querySelectorAll('#filters .chip').forEach(x=>x.classList.toggle('active',x.dataset.filter===currentFilter));
  render();
 }
-if(isEditorPage && !editorTargetId){render();openEditor();}else{render();loadCloudCharacters();}window.addEventListener('resize',fitTagBadges);
+const cachedCharacters=readCharacterCache();
+if(cachedCharacters){characters=cachedCharacters;}
+if(isEditorPage && !editorTargetId){render();openEditor();loadCloudCharacters();}
+else{
+ render();
+ if(isEditorPage&&editorTargetId&&characters.some(c=>String(c.id)===String(editorTargetId))){openEditor(editorTargetId);}
+ loadCloudCharacters();
+}
+window.addEventListener('resize',fitTagBadges);
 </script>
 </body>
 </html>
