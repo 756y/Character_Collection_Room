@@ -668,16 +668,33 @@ async function saveOne(character) {
       const oldResult = await apiFetch(`${SHEETS_API}/${id}/values/${encodeSheetRange(oldRange)}`)
       const oldValues = oldResult.values?.[0] || []
       if (String(oldValues[0] || '') === legacyId) {
-        existing = { rowNumber, id: String(oldValues[0]), title: oldValues[1] || '', content: cleanForStorage(combineCategoryCells(oldValues)) || {} }
+        existing = { rowNumber, id: String(oldValues[0]), title: oldValues[1] || '', content: cleanForStorage(combineCategoryCells(oldValues)) || {}, _rawValues: oldValues }
       } else {
         rowNumber = 0
       }
     }
     if (existing) {
-      const range = sheetRange(`A${rowNumber}:AA${rowNumber}`)
-      writeResult = await apiFetch(`${SHEETS_API}/${id}/values/${encodeSheetRange(range)}?valueInputOption=RAW`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ values }),
-      })
+      // 編輯時只寫入真正變動的分類欄位，避免每次都覆寫整列 JSON。
+      // A:J 對應 ID、名稱、七個分類欄位、更新時間。
+      const oldRowValues = existing._rawValues || []
+      const columnLetters = ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
+      const changedData = []
+      for (let index = 1; index <= 9; index++) {
+        const nextValue = String(values[0][index] ?? '')
+        const oldValue = String(oldRowValues[index] ?? '')
+        // J 是更新時間；只有資料內容真的有變動時才寫入新的時間戳。
+        if (index === 9 || nextValue !== oldValue) {
+          changedData.push({ range: sheetRange(`${columnLetters[index - 1]}${rowNumber}`), values: [[values[0][index]]] })
+        }
+      }
+      if (changedData.length) {
+        writeResult = await apiFetch(`${SHEETS_API}/${id}/values:batchUpdate`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ valueInputOption: 'RAW', data: changedData }),
+        })
+      } else {
+        writeResult = { updates: { updatedRows: 0, updatedRange: `${SHEET_NAME}!A${rowNumber}:J${rowNumber}` } }
+      }
     } else {
       const appendRange = sheetRange('A:AA')
       writeResult = await apiFetch(`${SHEETS_API}/${id}/values/${encodeSheetRange(appendRange)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
@@ -694,9 +711,10 @@ async function saveOne(character) {
     throw new Error(`Google 試算表寫入失敗。圖片可能已上傳，但角色文字尚未儲存。${error?.message ? ` Google API 回覆：${error.message}` : ''}`)
   }
 
-  // 保留必要的寫入確認，但只讀取剛寫入的單列。
+  // 保留必要的寫入確認；若編輯前後內容完全相同，使用已讀取的同一列資料即可，不再多打一個 GET。
+  const noContentChange = !!existing && values[0].slice(0, 9).every((value, index) => String(value ?? '') === String(existing._rawValues?.[index] ?? ''))
   const verifyRange = sheetRange(`A${rowNumber}:J${rowNumber}`)
-  const verifyResult = await apiFetch(`${SHEETS_API}/${id}/values/${encodeSheetRange(verifyRange)}`)
+  const verifyResult = noContentChange ? { values: [existing._rawValues] } : await apiFetch(`${SHEETS_API}/${id}/values/${encodeSheetRange(verifyRange)}`)
   const verifiedValues = verifyResult.values?.[0] || []
   if (String(verifiedValues[0] || '') !== legacyId) {
     const range = writeResult?.updates?.updatedRange || '未知範圍'
