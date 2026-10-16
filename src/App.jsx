@@ -10,6 +10,8 @@ export default function App() {
     } catch { return null }
   })
   const [busy, setBusy] = useState(false)
+  // A remembered email is only a UI hint; do not expose the cloud bridge until Google token validation succeeds.
+  const [googleAuthenticated, setGoogleAuthenticated] = useState(false)
   const [message, setMessage] = useState('')
   const [restoringSession, setRestoringSession] = useState(() => {
     try { return Boolean(localStorage.getItem('ccr_google_account_email')) } catch { return false }
@@ -36,11 +38,15 @@ export default function App() {
     // is being resumed.
     setProfile({ email: rememberedEmail })
     signInWithGoogle({ silent: true })
-      .then(user => { if (!cancelled) setProfile(user) })
+      .then(user => { if (!cancelled) { setProfile(user); setGoogleAuthenticated(true) } })
       .catch((error) => {
         // Keep the collection view visible. Google may require interaction after
         // a token expires/revocation; the remembered account remains available.
-        if (!cancelled) console.info('[CCR] Google 工作階段需要重新驗證。', error?.message || '')
+        if (!cancelled) {
+          console.info('[CCR] Google 工作階段需要重新驗證。', error?.message || '')
+          setGoogleAuthenticated(false)
+          setProfile(null)
+        }
       })
       .finally(() => { if (!cancelled) setRestoringSession(false) })
 
@@ -48,7 +54,7 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!profile) {
+    if (!profile || !googleAuthenticated) {
       try { delete window.__characterCloud } catch { window.__characterCloud = undefined }
       return
     }
@@ -67,6 +73,7 @@ export default function App() {
         await signOutGoogle()
         try { localStorage.removeItem('ccr_legacy_route') } catch { /* storage may be unavailable */ }
         setLegacyRoute('index.html')
+        setGoogleAuthenticated(false)
         setProfile(null)
       }
     }
@@ -75,7 +82,7 @@ export default function App() {
       window.removeEventListener('message', onMessage)
       try { delete window.__characterCloud } catch { window.__characterCloud = undefined }
     }
-  }, [profile])
+  }, [profile, googleAuthenticated])
 
   async function handleGoogleLogin() {
     setBusy(true)
@@ -83,6 +90,7 @@ export default function App() {
     try {
       const user = await signInWithGoogle()
       setProfile(user)
+      setGoogleAuthenticated(true)
     } catch (error) {
       setMessage(error?.message || 'Google 登入失敗，請稍後再試。')
     } finally {
