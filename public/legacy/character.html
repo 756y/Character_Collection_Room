@@ -99,7 +99,36 @@ let currentFilter='all', editingId=null, viewingId=null;
 let editorDirty=false, editorSaving=false, discardingEditorChanges=false;
 const $=id=>document.getElementById(id);
 function saveLocal(){ /* intentionally disabled: character data is cloud-only */ }
-function getCharacterCloudBridge(){try{if(window.__characterCloud)return window.__characterCloud;if(window.parent&&window.parent!==window&&window.parent.__characterCloud)return window.parent.__characterCloud;if(window.opener&&!window.opener.closed){if(window.opener.__characterCloud)return window.opener.__characterCloud;if(window.opener.parent&&window.opener.parent.__characterCloud)return window.opener.parent.__characterCloud}}catch(e){console.warn('無法存取雲端同步橋接',e)}return null}
+function getCharacterCloudBridge(){
+ // The editor may be nested more than one iframe deep. Search every same-origin ancestor,
+ // not only the immediate parent, because the React app publishes the bridge on its own window.
+ try{
+  let current=window;
+  for(let depth=0;depth<8;depth++){
+   if(current&&current.__characterCloud)return current.__characterCloud;
+   if(!current||current.parent===current)break;
+   current=current.parent;
+  }
+ }catch(e){console.warn('[CCR] 無法讀取某個祖先視窗的雲端橋接物件。',e)}
+ try{
+  const opener=window.opener;
+  if(opener&&!opener.closed){
+   let current=opener;
+   for(let depth=0;depth<8;depth++){
+    if(current&&current.__characterCloud)return current.__characterCloud;
+    if(!current||current.parent===current)break;
+    current=current.parent;
+   }
+  }
+ }catch(e){console.warn('[CCR] 無法讀取 opener 的雲端橋接物件。',e)}
+ return null;
+} 
+function getCharacterCloudBridgeDiagnostics(){
+ const result={inFrame:window.parent!==window,hasOpener:!!window.opener,hasSelfBridge:!!window.__characterCloud};
+ try{result.hasParentBridge=!!window.parent.__characterCloud;result.parentUrl=window.parent.location.href}catch(e){result.parentAccess='blocked'}
+ try{result.hasTopBridge=!!window.top.__characterCloud;result.topUrl=window.top.location.href}catch(e){result.topAccess='blocked'}
+ return result;
+}
 function getCurrentAccountEmail(){const bridge=getCharacterCloudBridge();return bridge&&typeof bridge.email==='string'&&bridge.email.trim()?bridge.email:'無法取得登入電子郵件'}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function toast(msg){$('toast').textContent=msg;$('toast').classList.add('show');setTimeout(()=>$('toast').classList.remove('show'),2800)}
@@ -269,7 +298,11 @@ function collectDocumentLinkRows(){return Array.from(document.querySelectorAll('
 function collectDocumentLinks(){return collectDocumentLinkRows().filter(item=>/^https:\/\/(docs\.google\.com|drive\.google\.com)\//i.test(item.url))}
 function addDocumentLinkRow(){const host=$('documentLinkList');if(!host)return;editorDirty=true;const current=collectDocumentLinkRows();current.push({url:'',name:''});host.innerHTML=renderDocumentLinkRows(current);host.querySelector('.document-link-row:last-child .document-url')?.focus()}
 function removeDocumentLinkRow(index){editorDirty=true;const current=collectDocumentLinkRows();current.splice(index,1);$('documentLinkList').innerHTML=renderDocumentLinkRows(current)}
-async function resolveDocumentName(urlInput, options={}){const input=typeof urlInput==='string'?null:urlInput;const clean=String(input?input.value:urlInput||'').trim();const silent=!!options.silent;if(!/^https:\/\/(docs\.google\.com|drive\.google\.com)\//i.test(clean))return null;const row=input?.closest('.document-link-row')||Array.from(document.querySelectorAll('#documentLinkList .document-link-row')).find(item=>item.querySelector('.document-url')?.value.trim()===clean);if(!row)return null;const nameInput=row.querySelector('.document-name');if(!nameInput)return null;const currentName=nameInput.value.trim();if(currentName&&!/^(Google 文件|Google 試算表|Google Drive 文件)$/i.test(currentName))return {skipped:true};const bridge=getCharacterCloudBridge();if(!bridge||typeof bridge.getDriveFileInfo!=='function'){const error=new Error('雲端連線尚未就緒，程式沒有呼叫 Google Drive API。請確認已登入並重新整理頁面。');console.warn('[CCR] Google 文件名稱讀取未執行：',error.message);if(!silent)toast(error.message);return {ok:false,error:error.message}}try{console.info('[CCR] 正在呼叫 Google Drive API 讀取文件名稱：',clean);const info=await bridge.getDriveFileInfo(clean);const resolvedName=String(info?.name||'').trim();if(!resolvedName||/^(Google 文件|Google 試算表|Google Drive 文件)$/i.test(resolvedName))throw new Error('Google Drive API 沒有回傳實際文件名稱。');if(!row.isConnected||row.querySelector('.document-url')?.value.trim()!==clean)return {ok:true,name:resolvedName,stale:true};if(!nameInput.value.trim()||/^(Google 文件|Google 試算表|Google Drive 文件)$/i.test(nameInput.value.trim()))nameInput.value=resolvedName;console.info('[CCR] 已取得 Google 文件名稱：',resolvedName);if(!silent)toast('已取得文件名稱：'+resolvedName);return {ok:true,name:resolvedName}}catch(error){console.error('[CCR] Google 文件名稱讀取失敗：',clean,error);const message=error?.message||String(error);if(!silent)toast('Google 文件名稱讀取失敗：'+message);else toast('Google 文件名稱讀取失敗：'+message);return {ok:false,error:message}}}
+async function waitForCharacterCloudBridge(timeoutMs=10000){const started=Date.now();while(Date.now()-started<timeoutMs){const bridge=getCharacterCloudBridge();if(bridge&&typeof bridge.getDriveFileInfo==='function')return bridge;await new Promise(resolve=>setTimeout(resolve,250));}const bridge=getCharacterCloudBridge();if(bridge&&typeof bridge.getDriveFileInfo!=='function'){console.warn('[CCR] 已找到雲端橋接物件，但它沒有 getDriveFileInfo 方法。請確認 React 主應用程式 src/App.jsx 已更新並重新啟動 Vite。',{bridgeVersion:bridge.bridgeVersion||'未標示',availableMethods:Object.keys(bridge).filter(key=>typeof bridge[key]==='function'),...getCharacterCloudBridgeDiagnostics()});return null;}return bridge&&typeof bridge.getDriveFileInfo==='function'?bridge:null;}
+async function resolveDocumentName(urlInput, options={}){const input=typeof urlInput==='string'?null:urlInput;const clean=String(input?input.value:urlInput||'').trim();const silent=!!options.silent;if(!/^https:\/\/(docs\.google\.com|drive\.google\.com)\//i.test(clean))return null;const row=input?.closest('.document-link-row')||Array.from(document.querySelectorAll('#documentLinkList .document-link-row')).find(item=>item.querySelector('.document-url')?.value.trim()===clean);if(!row)return null;const nameInput=row.querySelector('.document-name');if(!nameInput)return null;const currentName=nameInput.value.trim();if(currentName&&!/^(Google 文件|Google 試算表|Google Drive 文件)$/i.test(currentName))return {skipped:true};
+ // Blur 可能發生在 React 應用程式剛恢復登入、尚未發布雲端橋接物件時；短暫等待後再呼叫 API。
+ const bridge=await waitForCharacterCloudBridge(10000);if(!bridge){const diagnostics=getCharacterCloudBridgeDiagnostics();const foundBridge=!!getCharacterCloudBridge();const error=new Error(foundBridge?'已找到雲端連線橋接物件，但它沒有 getDriveFileInfo 方法，因此沒有呼叫 Google Drive API。':'等待 10 秒後仍找不到雲端連線橋接物件，因此沒有呼叫 Google Drive API。');console.warn('[CCR] Google 文件名稱讀取未執行：',error.message,{url:clean,...diagnostics});if(!silent)toast(error.message+' 請確認 src/App.jsx 已更新並重新啟動。');return {ok:false,error:error.message}}
+ try{console.info('[CCR] 正在呼叫 Google Drive API 讀取文件名稱：',clean);const info=await bridge.getDriveFileInfo(clean);const resolvedName=String(info?.name||'').trim();if(!resolvedName||/^(Google 文件|Google 試算表|Google Drive 文件)$/i.test(resolvedName))throw new Error('Google Drive API 已呼叫，但沒有回傳實際文件名稱。');if(!row.isConnected||row.querySelector('.document-url')?.value.trim()!==clean)return {ok:true,name:resolvedName,stale:true};if(!nameInput.value.trim()||/^(Google 文件|Google 試算表|Google Drive 文件)$/i.test(nameInput.value.trim()))nameInput.value=resolvedName;console.info('[CCR] 已取得 Google 文件名稱：',resolvedName);if(!silent)toast('已取得文件名稱：'+resolvedName);return {ok:true,name:resolvedName}}catch(error){console.error('[CCR] Google 文件名稱讀取失敗：已呼叫 Drive API，但回傳錯誤。',clean,error);const message=error?.message||String(error);if(!silent)toast('Google 文件名稱讀取失敗：'+message);else toast('Google 文件名稱讀取失敗：'+message);return {ok:false,error:message}}}
 function openCharacterDocuments(id){const c=characters.find(item=>String(item.id)===String(id));const docs=normalizeDocumentLinks(c?.documentLinks).filter(item=>/^https:\/\/(docs\.google\.com|drive\.google\.com)\//i.test(item.url));if(!docs.length)return;if(docs.length===1){window.open(docs[0].url,'_blank','noopener,noreferrer');return}openModal('選擇 Google 文件',`<div class="settings-panel">${docs.map((doc,i)=>`<div class="settings-row"><div><strong>${esc(doc.name||`Google 文件 ${i+1}`)}</strong><p style="overflow-wrap:anywhere">${esc(doc.url)}</p></div><button class="primary" type="button" onclick="openCharacterDocumentAt('${esc(id)}',${i})">開啟</button></div>`).join('')}<div class="modal-actions"><div></div><div class="right"><button class="secondary" onclick="closeModal()">取消</button></div></div></div>`)}
 function openCharacterDocumentAt(id,index){const c=characters.find(item=>String(item.id)===String(id));const doc=normalizeDocumentLinks(c?.documentLinks).filter(item=>/^https:\/\/(docs\.google\.com|drive\.google\.com)\//i.test(item.url))[index];if(!doc)return;window.open(doc.url,'_blank','noopener,noreferrer');closeModal()}
 function openCharacterSpreadsheet(id){const c=characters.find(item=>String(item.id)===String(id));const url=String(c?.sourceUrl||'').trim();if(!/^https:\/\/(docs\.google\.com|drive\.google\.com)\//i.test(url))return;window.open(url,'_blank','noopener,noreferrer')}

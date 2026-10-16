@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { listCharacters, resolveDriveImage, signInWithGoogle, signOutGoogle, syncCharacters } from './lib/googleDrive'
+import { listCharacters, resolveDriveImage, getDriveFileInfo, signInWithGoogle, signOutGoogle, syncCharacters } from './lib/googleDrive'
 
 export default function App() {
   const [profile, setProfile] = useState(null)
@@ -31,11 +31,14 @@ export default function App() {
       return
     }
     window.__characterCloud = {
+      bridgeVersion: 'drive-file-info-v1',
       email: profile.email || '',
       list: (options) => listCharacters(options),
       resolveImage: (value) => resolveDriveImage(value),
+      getDriveFileInfo: (value) => getDriveFileInfo(value),
       sync: (action, payload, currentCharacters) => syncCharacters(action, payload, currentCharacters),
     }
+    console.info('[CCR] 雲端連線橋接已初始化', { bridgeVersion: window.__characterCloud.bridgeVersion, hasGetDriveFileInfo: typeof window.__characterCloud.getDriveFileInfo === 'function' })
     const onMessage = async (event) => {
       if (event.origin !== window.location.origin) return
       if (event.data?.type === 'CHARACTER_ROOM_LOGOUT') {
