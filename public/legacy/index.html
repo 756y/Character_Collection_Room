@@ -97,6 +97,48 @@ body.editor-mode{background:var(--bg)}body.editor-mode .wrap{display:none}body.e
 .card-link-actions button.link-sheets svg,
 .card-link-actions button.link-docs svg,
 .card-link-actions button.link-youtube svg { display:block !important; width:18px !important; height:18px !important; }
+
+/* 手機與角色編輯微調 */
+.setting-fold .field label{display:none}
+.setting-fold .field{padding-top:12px}
+.location-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;grid-column:1/-1;min-width:0}
+.location-pair .field{min-width:0}
+@media(max-width:700px){.location-pair{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}}
+
+/* 手機卡片操作按鈕：避免收藏、連結與編輯按鈕垂直錯位 */
+@media(max-width:700px){.card-foot{display:flex;flex-wrap:wrap;justify-content:flex-start!important;align-items:center!important;gap:8px}.card-link-actions{display:flex;flex:0 1 auto;width:auto;max-width:100%;gap:5px;align-items:center;flex-wrap:nowrap}.card-link-actions button,.card-link-actions .card-star-action{flex:0 0 30px;width:30px;min-width:30px;height:32px;padding:0}.card-foot>.icon-btn{display:inline-flex;align-items:center;justify-content:center;align-self:center;min-height:32px;line-height:1.2;margin:0}}
+
+/* 收藏愛心與自訂分類 */
+.favorite-category-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap}.favorite-checkbox{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}.category-select-label{display:flex;align-items:center;gap:8px;min-width:190px}.category-select-label select{flex:1;min-width:130px;border:1px solid var(--line);border-radius:11px;padding:9px 12px;background:#fff;color:var(--ink)}
+@media(max-width:420px){.favorite-category-row{align-items:flex-start;gap:12px}.category-select-label{flex:1;min-width:160px}}
+
+.chip-add-category{border:1px dashed var(--line);background:transparent;color:var(--muted)}
+.chip-add-category:hover{background:var(--accent2);color:#9b531d}
+.card-star-action{color:#d85b78!important;font-size:20px!important;line-height:1}
+.card-star-action.is-favorite{color:#d83d68!important}
+.favorite-heart{color:#d83d68;font-size:15px}
+
+/* 本次調整：收藏狀態、編輯頁收藏列，以及基本屬性／技能編輯器 */
+.card-title{display:flex;align-items:baseline;gap:6px;min-width:0;}
+.card-title-name{min-width:0;overflow-wrap:anywhere;}
+.favorite-heart{display:inline-block;flex:0 0 auto;color:#d83d68;font-size:15px;line-height:1;vertical-align:middle;}
+.favorite-heart[hidden]{display:none!important;}
+.favorite-category-row{display:flex!important;flex-direction:row!important;justify-content:flex-start!important;align-items:center!important;align-self:flex-start!important;justify-self:start!important;grid-column:1/-1;width:100%;min-width:0;gap:8px;flex-wrap:nowrap!important;margin:8px 0 0!important;padding:0!important;text-align:left!important;}
+.favorite-checkbox{position:relative;display:inline-flex!important;flex:0 0 auto;flex-direction:row!important;justify-content:flex-start;align-items:center!important;gap:7px!important;margin:0!important;padding:8px 0;white-space:nowrap;cursor:pointer;color:var(--ink);}
+.favorite-checkbox input[type="checkbox"]{position:absolute;opacity:0;width:1px!important;height:1px!important;min-height:1px!important;margin:0;padding:0;}
+.favorite-checkbox:focus-within{outline:2px solid #f4b16d;outline-offset:3px;border-radius:6px;}
+.favorite-toggle-heart{font-size:21px;line-height:1;color:#d83d68;display:inline-block;min-width:20px;text-align:center;}
+.favorite-checkbox.is-favorite .favorite-toggle-heart{color:#d83d68;}
+.category-select-label{display:flex!important;flex:1 1 0;min-width:0!important;width:auto!important;flex-direction:row!important;align-items:center!important;justify-content:flex-start!important;gap:6px!important;white-space:nowrap;margin:0!important;}
+.favorite-category-row .category-select-label select{flex:1 1 auto;min-width:0!important;width:100%;max-width:100%;padding:8px 7px;}
+.key-value-editor{display:grid;gap:8px;}
+.key-value-row{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr) 34px;gap:7px;align-items:center;}
+.key-value-row input{box-sizing:border-box;width:100%;min-width:0;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);padding:10px 9px;font-size:14px;}
+.key-value-remove{min-width:34px;width:34px;height:38px;padding:0;border:1px solid #f0c9c4;border-radius:9px;background:#fff0ee;color:#b64235;}
+.key-value-add{margin-top:10px;padding:8px 12px;border-radius:10px;font-size:12px;}
+.key-value-empty{padding:12px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);font-size:12px;line-height:1.6;}
+@media(max-width:420px){.favorite-category-row{gap:7px!important;align-items:center!important;flex-wrap:nowrap!important}.favorite-checkbox{gap:5px!important;font-size:13px}.favorite-toggle-heart{font-size:20px;min-width:18px}.favorite-category-row .category-select-label{gap:4px!important;font-size:12px;flex:1 1 0!important;min-width:0!important}.favorite-category-row .category-select-label select{padding:7px 5px;font-size:14px;min-width:0!important}.key-value-row{grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr) 32px;gap:5px}.key-value-row input{padding:9px 7px;font-size:14px}}
+
 </style>
 </head>
 <body>
@@ -106,7 +148,7 @@ body.editor-mode{background:var(--bg)}body.editor-mode .wrap{display:none}body.e
     <div class="actions"><button class="primary" id="addTop">＋ 新增角色</button><button class="settings-btn" id="settingsBtn" type="button" aria-label="設定" title="設定">⚙️</button></div>
   </header>
   <div class="toolbar"><div><h2>我的角色 <span id="count" class="tiny">0 位</span></h2><p class="section-caption">整理、搜尋並管理你的 TRPG 角色</p></div><div class="tools"><input id="search" class="search" placeholder="搜尋角色、職業、標籤…" aria-label="搜尋角色"></div></div>
-  <div class="filters" id="filters"><button class="chip active" data-filter="all">全部角色</button><button class="chip" data-filter="favorite">★ 收藏</button></div>
+  <div class="filters" id="filters"><button class="chip active" data-filter="all">全部角色</button><button class="chip" data-filter="favorite">♡ 收藏</button><button class="chip chip-add-category" type="button" onclick="openCreateCategory()">＋ 自訂</button></div>
   <div id="gallery" class="grid"></div>
   <div class="footer-note">角色收藏室 · 將重要角色好好保存</div>
 </div>
@@ -389,7 +431,7 @@ function render(){
  const shown=characters.filter(c=>{
   const hay=[c.name,c.alias,c.occupation,c.system,c.type,c.work,c.age,c.gender,c.player,c.nationality,c.description,c.backstory,c.personality,c.beliefs,c.importantPeople,c.importantPlaces,c.injuries,c.possessions,c.phobias,c.notes,...tagsOf(c),...Object.entries(c.attributes||{}).flat(),...Object.entries(c.skills||{}).flat()].join(' ').toLocaleLowerCase();
   const match=!q||hay.includes(q);
-  const f=currentFilter==='all'||(currentFilter==='favorite'&&c.favorite)||(currentFilter==='COC'&&/coc|克蘇魯/i.test((c.system||'')+' '+(c.type||'')))||(currentFilter==='自訂'&& !/coc|克蘇魯/i.test((c.system||'')+' '+(c.type||'')));
+  const f=currentFilter==='all'||(currentFilter==='favorite'&&isFavorite(c.favorite))||(currentFilter.startsWith('category:')&&String(c.category||'')===currentFilter.slice(9))||(currentFilter==='COC'&&/coc|克蘇魯/i.test((c.system||'')+' '+(c.type||'')))||(currentFilter==='自訂'&& !/coc|克蘇魯/i.test((c.system||'')+' '+(c.type||'')));
   return match&&f;
  });
  $('count').textContent=`${shown.length} 位`;
@@ -402,8 +444,8 @@ function render(){
   const relatedLinks=normalizeDocumentLinks(c.documentLinks);
   const docs=relatedLinks.filter(d=>/^https:\/\/(docs\.google\.com|drive\.google\.com)\//i.test(d.url));
   const videos=relatedLinks.filter(d=>isYouTubeUrl(d.url));
-  const actions=`<div class="card-link-actions"><button class="card-star-action" title="${c.favorite?'取消收藏':'加入收藏'}" aria-label="${c.favorite?'取消收藏':'加入收藏'}" onclick="event.stopPropagation();toggleFavorite('${esc(c.id)}')">${c.favorite?'★':'☆'}</button>${hasSheet?`<button class="link-sheets" type="button" title="開啟 Google 試算表" aria-label="開啟 Google 試算表" onclick="event.stopPropagation();openCharacterSpreadsheet('${esc(c.id)}')"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M5 2h10l4 4v16H5z"/><path fill="#fff" d="M8 9h8v1.6H8zm0 3.3h8v1.6H8zm0 3.3h8v1.6H8z"/><path fill="#188038" d="M3 5h7v14H3z"/><path fill="#fff" d="M4.5 8h4v1.3h-4zm0 3h4v1.3h-4zm0 3h4v1.3h-4z"/></svg></button>`:''}${docs.length?`<button class="link-docs" type="button" title="開啟 Google 文件" aria-label="開啟 Google 文件" onclick="event.stopPropagation();openCharacterDocuments('${esc(c.id)}')"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M5 2h10l4 4v16H5z"/><path fill="#fff" d="M15 2v5h4M8 11h8v1.5H8zm0 3.5h8V16H8zm0 3.5h6v1.5H8z"/></svg></button>`:''}${videos.length?`<button class="link-youtube" type="button" title="開啟 YouTube 影片" aria-label="開啟 YouTube 影片" onclick="event.stopPropagation();openCharacterYouTube('${esc(c.id)}')"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="4" fill="#fff"/><path d="M10 8.5 16 12l-6 3.5z" fill="#ff0033"/></svg></button>`:''}</div>`;
-  return `<article class="card"><div class="cover" data-edit-character="${esc(c.id)}" role="button" tabindex="0" aria-label="點擊編輯 ${esc(c.name||'角色')}">${carouselMarkup(imgs,'card:'+c.id,c.name)}<span class="tagline">${esc(c.system||c.type||'角色')}</span></div><div class="card-body"><h3>${esc(c.name||'未命名角色')}${c.favorite?' <span style="color:#e58a42">★</span>':''}</h3><div class="sub">${esc(c.occupation||'尚未設定職業')}${c.age?' · '+esc(c.age)+' 歲':''}</div><div class="badges" data-tags="${esc(JSON.stringify(tags))}">${tags.map((t,i)=>`<span class="badge" data-tag-index="${i}">${esc(t)}</span>`).join('')}</div><div class="card-foot">${actions}</div></div></article>`
+  const actions=`<div class="card-link-actions"><button class="card-star-action ${isFavorite(c.favorite)?'is-favorite':''}" title="${isFavorite(c.favorite)?'取消收藏':'加入收藏'}" aria-label="${isFavorite(c.favorite)?'取消收藏':'加入收藏'}" aria-pressed="${isFavorite(c.favorite)}" onclick="event.stopPropagation();toggleFavorite('${esc(c.id)}')">${isFavorite(c.favorite)?'♥':'♡'}</button>${hasSheet?`<button class="link-sheets" type="button" title="開啟 Google 試算表" aria-label="開啟 Google 試算表" onclick="event.stopPropagation();openCharacterSpreadsheet('${esc(c.id)}')"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M5 2h10l4 4v16H5z"/><path fill="#fff" d="M8 9h8v1.6H8zm0 3.3h8v1.6H8zm0 3.3h8v1.6H8z"/><path fill="#188038" d="M3 5h7v14H3z"/><path fill="#fff" d="M4.5 8h4v1.3h-4zm0 3h4v1.3h-4zm0 3h4v1.3h-4z"/></svg></button>`:''}${docs.length?`<button class="link-docs" type="button" title="開啟 Google 文件" aria-label="開啟 Google 文件" onclick="event.stopPropagation();openCharacterDocuments('${esc(c.id)}')"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M5 2h10l4 4v16H5z"/><path fill="#fff" d="M15 2v5h4M8 11h8v1.5H8zm0 3.5h8V16H8zm0 3.5h6v1.5H8z"/></svg></button>`:''}${videos.length?`<button class="link-youtube" type="button" title="開啟 YouTube 影片" aria-label="開啟 YouTube 影片" onclick="event.stopPropagation();openCharacterYouTube('${esc(c.id)}')"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="4" fill="#fff"/><path d="M10 8.5 16 12l-6 3.5z" fill="#ff0033"/></svg></button>`:''}</div>`;
+  return `<article class="card"><div class="cover" data-edit-character="${esc(c.id)}" role="button" tabindex="0" aria-label="點擊編輯 ${esc(c.name||'角色')}">${carouselMarkup(imgs,'card:'+c.id,c.name)}<span class="tagline">${esc(c.system||c.type||'角色')}</span></div><div class="card-body"><h3>${esc(c.name||'未命名角色')}</h3><div class="sub">${esc(c.occupation||'尚未設定職業')}${c.age?' · '+esc(c.age)+' 歲':''}</div><div class="badges" data-tags="${esc(JSON.stringify(tags))}">${tags.map((t,i)=>`<span class="badge" data-tag-index="${i}">${esc(t)}</span>`).join('')}</div><div class="card-foot">${actions}</div></div></article>`
  }).join('');
  fitTagBadges();
  bindImageSwipe();
@@ -438,6 +480,53 @@ function openCharacterYouTubeAt(id,index){const c=characters.find(item=>String(i
 function openCharacterDocuments(id){const c=characters.find(item=>String(item.id)===String(id));const docs=normalizeDocumentLinks(c?.documentLinks).filter(item=>/^https:\/\/(docs\.google\.com|drive\.google\.com)\//i.test(item.url));if(!docs.length)return;if(docs.length===1){window.open(docs[0].url,'_blank','noopener,noreferrer');return}openModal('選擇 Google 文件',`<div class="settings-panel">${docs.map((doc,i)=>`<div class="settings-row"><div><strong>${esc(doc.name||`Google 文件 ${i+1}`)}</strong><p style="overflow-wrap:anywhere">${esc(doc.url)}</p></div><button class="primary" type="button" onclick="openCharacterDocumentAt('${esc(id)}',${i})">開啟</button></div>`).join('')}<div class="modal-actions"><div></div><div class="right"><button class="secondary" onclick="closeModal()">取消</button></div></div></div>`)}
 function openCharacterDocumentAt(id,index){const c=characters.find(item=>String(item.id)===String(id));const doc=normalizeDocumentLinks(c?.documentLinks).filter(item=>/^https:\/\/(docs\.google\.com|drive\.google\.com)\//i.test(item.url))[index];if(!doc)return;window.open(doc.url,'_blank','noopener,noreferrer');closeModal()}
 function openCharacterSpreadsheet(id){const c=characters.find(item=>String(item.id)===String(id));const url=String(c?.sourceUrl||'').trim();if(!/^https:\/\/(docs\.google\.com|drive\.google\.com)\//i.test(url))return;window.open(url,'_blank','noopener,noreferrer')}
+function isFavorite(value){return value===true||value===1||/^(true|1|yes)$/i.test(String(value??'').trim())}
+function characterDataValueText(value){if(value===undefined||value===null)return '';if(typeof value==='object'){try{return JSON.stringify(value)}catch(e){return String(value)}}return String(value)}
+function renderCharacterDataRows(kind,record){
+ const source=record&&typeof record==='object'&&!Array.isArray(record)?record:{};
+ const data=kind==='attributes'&&typeof orderCocAttributes==='function'?orderCocAttributes(source):source;
+ const entries=Object.entries(data);
+ if(!entries.length)return '<div class="key-value-empty">尚無資料，可按下方「新增欄位」手動輸入。</div>';
+ return entries.map(([key,value])=>`<div class="key-value-row"><input type="text" class="key-value-name" value="${esc(key)}" placeholder="欄位名稱" aria-label="欄位名稱"><input type="text" class="key-value-value" value="${esc(characterDataValueText(value))}" placeholder="數值／內容" aria-label="數值或內容"><button class="key-value-remove" type="button" title="移除此欄位" aria-label="移除此欄位" onclick="removeCharacterDataRow(this)">－</button></div>`).join('');
+}
+function renderCharacterDataEditors(attributes,skills){
+ const attr=$('f_attributesRows'),skill=$('f_skillsRows');
+ if(attr)attr.innerHTML=renderCharacterDataRows('attributes',attributes||{});
+ if(skill)skill.innerHTML=renderCharacterDataRows('skills',skills||{});
+}
+function addCharacterDataRow(kind){
+ const container=$(kind==='attributes'?'f_attributesRows':'f_skillsRows');if(!container)return;
+ container.querySelector('.key-value-empty')?.remove();
+ const row=document.createElement('div');row.className='key-value-row';
+ row.innerHTML='<input type="text" class="key-value-name" placeholder="欄位名稱" aria-label="欄位名稱"><input type="text" class="key-value-value" placeholder="數值／內容" aria-label="數值或內容"><button class="key-value-remove" type="button" title="移除此欄位" aria-label="移除此欄位" onclick="removeCharacterDataRow(this)">－</button>';
+ container.appendChild(row);row.querySelector('.key-value-name')?.focus();editorDirty=true;
+}
+function removeCharacterDataRow(button){
+ const row=button?.closest('.key-value-row'),container=row?.parentElement;if(!row||!container)return;row.remove();
+ if(!container.querySelector('.key-value-row'))container.innerHTML='<div class="key-value-empty">尚無資料，可按下方「新增欄位」手動輸入。</div>';
+ editorDirty=true;
+}
+function collectCharacterDataEntries(kind,original){
+ const container=$(kind==='attributes'?'f_attributesRows':'f_skillsRows');
+ if(!container)return original&&typeof original==='object'?{...original}:{};
+ const source=original&&typeof original==='object'&&!Array.isArray(original)?original:{};const result={};
+ container.querySelectorAll('.key-value-row').forEach(row=>{
+  const key=String(row.querySelector('.key-value-name')?.value||'').trim();if(!key)return;
+  const raw=String(row.querySelector('.key-value-value')?.value??'');const previous=Object.prototype.hasOwnProperty.call(source,key)?source[key]:undefined;let value=raw;
+  if(typeof previous==='number'&&raw.trim()!==''&&Number.isFinite(Number(raw)))value=Number(raw);
+  else if(typeof previous==='boolean'&&/^(true|false)$/i.test(raw.trim()))value=raw.trim().toLowerCase()==='true';
+  else if(previous&&typeof previous==='object'){try{value=JSON.parse(raw)}catch(e){value=raw}}
+  else if(raw.trim()!==''&&/^-?(?:\d+\.?\d*|\.\d+)$/.test(raw.trim()))value=Number(raw.trim());
+  result[key]=value;
+ });
+ return result;
+}
+function updateFavoriteToggleUI(){
+ const input=$('f_favorite'),label=document.querySelector('.favorite-checkbox');if(!input||!label)return;
+ const active=input.checked;label.classList.toggle('is-favorite',active);label.setAttribute('aria-pressed',String(active));
+ const icon=label.querySelector('.favorite-toggle-heart');if(icon)icon.textContent=active?'♥':'♡';
+}
+
 function openEditor(id){
  editorOpened=true;
  if(!isEditorPage){
@@ -448,7 +537,7 @@ function openEditor(id){
   return;
  }
  editingId=id||null;editorDirty=false;editorSaving=false;discardingEditorChanges=false;
- const c=(id?characters.find(x=>x.id===id):null)||{name:'',alias:'',work:'',type:'自訂角色',system:'',occupation:'',age:'',gender:'',player:'',nationality:'',portraitUrl:'',originalImageUrl:'',images:[],sourceUrl:'',description:'',backstory:'',personality:'',beliefs:'',importantPeople:'',importantPlaces:'',specialAbilities:'',injuries:'',possessions:'',phobias:'',tags:[],favorite:false,notes:'',attributes:{},skills:{}};
+ const c=(id?characters.find(x=>x.id===id):null)||{name:'',alias:'',work:'',type:'自訂角色',system:'',occupation:'',age:'',gender:'',player:'',nationality:'',portraitUrl:'',originalImageUrl:'',images:[],sourceUrl:'',description:'',backstory:'',personality:'',beliefs:'',importantPeople:'',importantPlaces:'',specialAbilities:'',injuries:'',possessions:'',phobias:'',tags:[],favorite:false,category:'',notes:'',attributes:{},skills:{}};
  window._editingImages=effectiveImages(c).slice();
  openModal('角色頁面',`
  <section class="image-editor-panel"><div class="image-editor-heading"><div><strong>角色圖片</strong><div class="image-help">上方一次顯示一張；可左右滑動或按箭頭切換，最多 10 張。</div></div></div><div id="imageManager" class="image-manager"></div><div class="image-upload-row"><label class="image-upload-button secondary" for="f_imageFiles">＋ 上傳圖片（可多選）</label><input class="hidden" id="f_imageFiles" type="file" accept="image/*" multiple onchange="handleImageFiles(this.files)"></div></section>
@@ -458,7 +547,7 @@ function openEditor(id){
  <div class="field"><label>角色名稱 *</label><input id="f_name" value="${esc(c.name)}" placeholder="角色姓名"></div>
  <div class="field"><label>職業／身份</label><input id="f_occupation" value="${esc(c.occupation)}"></div>
  <div class="field"><label>年齡</label><input id="f_age" value="${esc(c.age)}"></div><div class="field"><label>性別</label><input id="f_gender" value="${esc(c.gender)}"></div>
- <div class="field"><label>玩家</label><input id="f_player" value="${esc(c.player)}"></div><div class="field"><label>國籍／出身</label><input id="f_nationality" value="${esc(c.nationality)}"></div>
+ <div class="location-pair full"><div class="field"><label>出生地</label><input id="f_birthplace" value="${esc(c.birthplace||c.nationality)}"></div><div class="field"><label>居住地</label><input id="f_residence" value="${esc(c.residence)}"></div></div>
  <div class="field full"><label>Tag／標籤（用逗號分隔）</label><input id="f_tags" value="${esc(tagsOf(c).join(', '))}" placeholder="留空即可，不會自動加入標籤"></div>
  <div class="form-section full"><h3>角色設定</h3><p>依照角色背景與內在特質整理，角色資料會依照相同順序整理。</p></div>
  <details class="setting-fold full"><summary>形象描述</summary><div class="field"><label>形象描述</label><textarea id="f_description">${esc(c.description)}</textarea></div></details>
@@ -470,13 +559,16 @@ function openEditor(id){
  <details class="setting-fold full"><summary>意義非凡之地</summary><div class="field"><label>意義非凡之地</label><textarea id="f_importantPlaces">${esc(c.importantPlaces||c.meaningfulLocations||'')}</textarea></div></details>
  <details class="setting-fold full"><summary>寶貴之物</summary><div class="field"><label>寶貴之物</label><textarea id="f_possessions">${esc(c.possessions)}</textarea></div></details>
  <details class="setting-fold full"><summary>生平故事</summary><div class="field"><label>生平故事</label><textarea id="f_backstory">${esc(c.backstory)}</textarea></div></details>
- <div class="field full"><label>完整原始角色卡資料（JSON）</label><textarea id="f_rawCharacter" style="min-height:180px;font-family:ui-monospace,monospace;font-size:11px">${esc(c.rawCharacter?JSON.stringify(c.rawCharacter,null,2):'')}</textarea><small>抓到完整 JSON 時會保留未映射欄位；若是一般表格，會保留辨識到的標籤和值。</small></div>
+ <details class="setting-fold full"><summary>基本屬性</summary><div class="field"><div class="key-value-editor" id="f_attributesRows">${renderCharacterDataRows('attributes',c.attributes||window._pendingFetchedCharacter?.attributes||{})}</div><button class="secondary key-value-add" type="button" onclick="addCharacterDataRow('attributes')">＋ 新增基本屬性</button><small>會載入角色卡已有的屬性欄位，也可以自行新增、修改或刪除。</small></div></details>
+ <details class="setting-fold full"><summary>技能</summary><div class="field"><div class="key-value-editor" id="f_skillsRows">${renderCharacterDataRows('skills',c.skills||window._pendingFetchedCharacter?.skills||{})}</div><button class="secondary key-value-add" type="button" onclick="addCharacterDataRow('skills')">＋ 新增技能</button><small>會載入角色卡已有的技能欄位，也可以自行新增、修改或刪除。</small></div></details>
  <div class="field full"><label>系統／規則</label><input id="f_system" value="${esc(c.system)}" placeholder="例如：COC 7版"></div>
- <div class="field full"><label>私人備註</label><textarea id="f_notes">${esc(c.notes)}</textarea><small>備註會隨角色資料一起保存。</small></div>
- <div class="field full"><label><input type="checkbox" id="f_favorite" ${c.favorite?'checked':''} style="width:auto"> 加入收藏</label></div>
+ <div class="field full"><label>備註</label><textarea id="f_notes">${esc(c.notes)}</textarea><small>備註會隨角色資料一起保存。</small></div>
+ <div class="field full favorite-category-row"><label class="favorite-checkbox" for="f_favorite"><input type="checkbox" id="f_favorite" ${isFavorite(c.favorite)?'checked':''} style="width:auto"><span class="favorite-toggle-heart" aria-hidden="true">${isFavorite(c.favorite)?'♥':'♡'}</span><span>加入收藏</span></label><label class="category-select-label" for="f_category">分類<select id="f_category"><option value="" ${!c.category?'selected':''}>無類別</option>${customCategories.map(name=>`<option value="${esc(name)}" ${c.category===name?'selected':''}>${esc(name)}</option>`).join('')}</select></label></div>
  </div>
  <div class="modal-actions"><div>${id?`<button class="danger" onclick="deleteCharacter('${id}')">刪除角色</button>`:''}</div><div class="right"><button class="secondary" onclick="cancelEditor()">取消</button><button class="primary" onclick="saveCharacter()">儲存角色</button></div></div>`);
  renderImageManager();
+ const favoriteInput=$('f_favorite');if(favoriteInput)favoriteInput.addEventListener('change',updateFavoriteToggleUI);
+ updateFavoriteToggleUI();
  bindEditorDirtyTracking();
 }
 async function saveCharacter(){
@@ -487,7 +579,7 @@ async function saveCharacter(){
  // 文件／YouTube 標題在離開連結欄位時處理；儲存時不再等待外部 API。
  const old=editingId?characters.find(x=>x.id===editingId):null;
  const editedImages=(window._editingImages||[]).slice();
- const c={...(old||{}),id:old?.id||('CHR-'+Date.now().toString().slice(-8)),name,alias:old?.alias||'',occupation:val('occupation'),system:val('system'),type:old?.type||'自訂角色',work:old?.work||'',age:val('age'),gender:val('gender'),player:val('player'),nationality:val('nationality'),sourceUrl:val('sourceUrl'),documentLinks:collectDocumentLinks(),portraitUrl:editedImages.includes(old?.portraitUrl)?old.portraitUrl:(editedImages[0]||''),originalImageUrl:editedImages.includes(old?.originalImageUrl)?old.originalImageUrl:(editedImages[0]||''),images:editedImages,tags:val('tags').split(/[,，、]/).map(x=>x.trim()).filter(Boolean),description:val('description'),backstory:val('backstory'),personality:val('personality'),beliefs:val('beliefs'),importantPeople:val('importantPeople'),importantPlaces:val('importantPlaces'),specialAbilities:old?.specialAbilities||'',injuries:val('injuries'),possessions:val('possessions'),phobias:val('phobias'),notes:val('notes'),favorite:$('f_favorite').checked,attributes:old?.attributes||window._pendingFetchedCharacter?.attributes||{},skills:old?.skills||window._pendingFetchedCharacter?.skills||{},rawCharacter:(()=>{const t=val('rawCharacter').trim();if(t){try{return JSON.parse(t)}catch(e){toast('完整原始資料不是有效 JSON，已保留原本資料');return old?.rawCharacter||window._pendingFetchedCharacter?.rawCharacter||null}}return old?.rawCharacter||window._pendingFetchedCharacter?.rawCharacter||null})(),rawSourceCells:old?.rawSourceCells||window._pendingFetchedCharacter?.rawSourceCells||null,createdAt:old?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+ const c={...(old||{}),id:old?.id||('CHR-'+Date.now().toString().slice(-8)),name,alias:old?.alias||'',occupation:val('occupation'),system:val('system'),type:old?.type||'自訂角色',work:old?.work||'',age:val('age'),gender:val('gender'),player:old?.player||'',nationality:old?.nationality||'',birthplace:val('birthplace'),residence:val('residence'),sourceUrl:val('sourceUrl'),documentLinks:collectDocumentLinks(),portraitUrl:editedImages.includes(old?.portraitUrl)?old.portraitUrl:(editedImages[0]||''),originalImageUrl:editedImages.includes(old?.originalImageUrl)?old.originalImageUrl:(editedImages[0]||''),images:editedImages,tags:val('tags').split(/[,，、]/).map(x=>x.trim()).filter(Boolean),description:val('description'),backstory:val('backstory'),personality:val('personality'),beliefs:val('beliefs'),importantPeople:val('importantPeople'),importantPlaces:val('importantPlaces'),specialAbilities:old?.specialAbilities||'',injuries:val('injuries'),possessions:val('possessions'),phobias:val('phobias'),notes:val('notes'),favorite:$('f_favorite').checked,category:val('category'),attributes:collectCharacterDataEntries("attributes",old?.attributes||window._pendingFetchedCharacter?.attributes||{}),skills:collectCharacterDataEntries("skills",old?.skills||window._pendingFetchedCharacter?.skills||{}),rawCharacter:(()=>{const t=val('rawCharacter').trim();if(t){try{return JSON.parse(t)}catch(e){toast('完整原始資料不是有效 JSON，已保留原本資料');return old?.rawCharacter||window._pendingFetchedCharacter?.rawCharacter||null}}return old?.rawCharacter||window._pendingFetchedCharacter?.rawCharacter||null})(),rawSourceCells:old?.rawSourceCells||window._pendingFetchedCharacter?.rawSourceCells||null,createdAt:old?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
  delete c.portraitUrl;delete c.originalImageUrl;
  if(old){
   const comparable=value=>{const copy={...(value||{})};delete copy.updatedAt;delete copy.cloudDbId;return JSON.stringify(copy)};
@@ -515,7 +607,7 @@ async function deleteCharacter(id){
  if(!result?.ok){await loadCloudCharacters();return;}
  if(result.warning)toast(result.warning);else toast('角色已刪除，清單已同步');
 }
-function toggleFavorite(id){characters=characters.map(c=>c.id===id?{...c,favorite:!c.favorite,updatedAt:new Date().toISOString()}:c);saveLocal();render();syncIfConfigured('upsert',{id})}
+function toggleFavorite(id){const target=characters.find(c=>String(c.id)===String(id));if(!target)return;const nextFavorite=!isFavorite(target.favorite);characters=characters.map(c=>String(c.id)===String(id)?{...c,favorite:nextFavorite,updatedAt:new Date().toISOString()}:c);saveLocal();render();syncIfConfigured('upsert',{id})}
 async function syncIfConfigured(action,payload){
  if(IN_APPS_SCRIPT){
   return new Promise(resolve=>{
@@ -637,14 +729,41 @@ function importFile(file){
   }catch(e){toast('匯入失敗：請確認檔案是有效的 CSV 或 JSON')}
  };reader.readAsText(file,'UTF-8');
 }
-function normalizeImported(x,i){return {...{id:'CHR-'+Date.now().toString().slice(-7)+i,name:'未命名角色',alias:'',work:'',type:'自訂角色',system:'',occupation:'',age:'',gender:'',player:'',nationality:'',portraitUrl:'',originalImageUrl:'',sourceUrl:'',description:'',backstory:'',personality:'',beliefs:'',importantPeople:'',importantPlaces:'',specialAbilities:'',injuries:'',possessions:'',phobias:'',attributes:{},skills:{},tags:[],favorite:false,notes:'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()},...x,id:x.id||('CHR-'+Date.now().toString().slice(-7)+i),tags:Array.isArray(x.tags)?x.tags:String(x.tags||'').split(/[,，、]/).map(t=>t.trim()).filter(Boolean)}}
+function normalizeImported(x,i){return {...{id:'CHR-'+Date.now().toString().slice(-7)+i,name:'未命名角色',alias:'',work:'',type:'自訂角色',system:'',occupation:'',age:'',gender:'',player:'',nationality:'',portraitUrl:'',originalImageUrl:'',sourceUrl:'',description:'',backstory:'',personality:'',beliefs:'',importantPeople:'',importantPlaces:'',specialAbilities:'',injuries:'',possessions:'',phobias:'',attributes:{},skills:{},tags:[],favorite:false,category:'',notes:'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()},...x,id:x.id||('CHR-'+Date.now().toString().slice(-7)+i),tags:Array.isArray(x.tags)?x.tags:String(x.tags||'').split(/[,，、]/).map(t=>t.trim()).filter(Boolean)}}
+const CATEGORY_STORAGE_KEY='ccr_custom_categories_v1';
+let customCategories=(()=>{try{const value=JSON.parse(localStorage.getItem(CATEGORY_STORAGE_KEY)||'[]');return Array.isArray(value)?[...new Set(value.filter(x=>typeof x==='string'&&x.trim()).map(x=>x.trim()))]:[]}catch(e){return []}})();
+function saveCustomCategories(){try{localStorage.setItem(CATEGORY_STORAGE_KEY,JSON.stringify(customCategories))}catch(e){}}
+function renderCategoryFilters(){
+ const host=$('filters');if(!host)return;
+ host.querySelectorAll('[data-custom-category="1"]').forEach(node=>node.remove());
+ const addButton=host.querySelector('.chip-add-category');
+ customCategories.forEach(name=>{
+  const button=document.createElement('button');button.type='button';button.className='chip';button.dataset.filter='category:'+name;button.dataset.customCategory='1';button.textContent=name;
+  if(currentFilter==='category:'+name)button.classList.add('active');
+  host.insertBefore(button,addButton||null);
+ });
+ host.querySelectorAll('.chip').forEach(button=>button.classList.toggle('active',button.dataset.filter===currentFilter));
+}
+function openCreateCategory(){
+ openModal('新增自訂分類',`<div class="field"><label for="newCategoryName">自訂分類名稱</label><input id="newCategoryName" maxlength="40" placeholder="輸入分類名稱" onkeydown="if(event.key==='Enter'){event.preventDefault();saveNewCategory()}"></div><div class="modal-actions"><div></div><div class="right"><button class="secondary" type="button" onclick="closeModal()">取消</button><button class="primary" type="button" onclick="saveNewCategory()">確定</button></div></div>`);
+ setTimeout(()=>$('newCategoryName')?.focus(),30);
+}
+function saveNewCategory(){
+ const input=$('newCategoryName');const name=String(input?.value||'').trim();
+ if(!name){toast('請輸入分類名稱');input?.focus();return}
+ if(['全部角色','收藏','無類別'].includes(name)){toast('這個名稱是保留名稱，請換一個名稱');input?.focus();return}
+ if(customCategories.some(item=>item.toLocaleLowerCase()===name.toLocaleLowerCase())){toast('這個分類已經存在');input?.focus();return}
+ customCategories.push(name);saveCustomCategories();currentFilter='category:'+name;renderCategoryFilters();closeModal();render();toast('已新增自訂分類');
+}
 function setCurrentFilter(filter){
  currentFilter=filter||'all';
- document.querySelectorAll('#filters .chip').forEach(x=>x.classList.toggle('active',x.dataset.filter===currentFilter));
+ renderCategoryFilters();
  render();
 }
+$('filters')?.addEventListener('click',event=>{const button=event.target.closest('[data-filter]');if(button)setCurrentFilter(button.dataset.filter)});
 const cachedCharacters=readCharacterCache();
 if(cachedCharacters){characters=cachedCharacters;}
+renderCategoryFilters();
 if(isEditorPage && !editorTargetId){render();openEditor();loadCloudCharacters();}
 else{
  render();

@@ -62,7 +62,7 @@ const COC_FIELD_LABELS={
  meaningful_locations:'意義非凡之地',meaningful_location:'意義非凡之地',important_places:'意義非凡之地',important_places_and_reasons:'意義非凡之地',
  character_name:'角色名稱',player:'玩家',occupation:'職業',sex:'性別',age:'年齡',
  birthplace:'出生地',residence:'居住地',str:'力量',dex:'敏捷',pow:'意志',con:'體質',
- app:'外貌',edu:'教育',siz:'體型',int:'智力',luck:'幸運',hp:'HP',mp:'MP',san:'SAN',
+ app:'外貌',edu:'教育',know:'知識',knowledge:'知識',siz:'體型',int:'智力',idea:'靈感',inspiration:'靈感',luck:'幸運',hp:'HP',mp:'MP',san:'SAN',
  armor:'護甲',psychology:'心理學',credit_rating:'信譽',persuade:'說服',fast_talk:'話術',
  intimidate:'恐嚇',charm:'取悅',navigate:'導航',jump:'跳躍',climb:'攀爬',swim:'游泳',
  drive_auto:'駕駛（汽車）',ride:'騎術',stealth:'潛行',track:'追蹤',disguise:'喬裝',
@@ -79,16 +79,66 @@ const COC_FIELD_LABELS={
 // Google Sheets 的「浮動插入圖片」不屬於儲存格資料，GViz 不會回傳；這種情況需由使用者上傳或貼圖片直連網址。
 // 依使用者需求，不再嘗試從試算表擷取圖片；圖片只由編輯頁手動上傳。
 function extractSheetImageUrls(_response){return [];}
+function canonicalCocAttributeLabel(value){
+ const raw=String(value??'').trim();
+ const key=raw.toLowerCase().replace(/[\s　_－-]/g,'');
+ const aliases={
+  str:'力量',strength:'力量',力量:'力量',
+  dex:'敏捷',dexterity:'敏捷',敏捷:'敏捷',
+  pow:'意志',power:'意志',willpower:'意志',意志:'意志',
+  con:'體質',constitution:'體質',體質:'體質',
+  app:'外貌',appearance:'外貌',外貌:'外貌',
+  edu:'教育',education:'教育',教育:'教育',
+  siz:'體型',size:'體型',體型:'體型',
+  int:'智力',intelligence:'智力',智力:'智力',
+  luck:'幸運',幸運:'幸運',
+  idea:'靈感',idearoll:'靈感','idea-roll':'靈感',inspiration:'靈感',靈感:'靈感',
+  know:'知識',knowledge:'知識',knowroll:'知識','knowledge-roll':'知識',知識:'知識',
+  hp:'HP',mp:'MP',san:'SAN',mov:'MOV',db:'DB',build:'Build',
+ };
+ return aliases[key]||raw;
+}
+function orderCocAttributes(source){
+ const attrs={};
+ for(const [key,value] of Object.entries(source||{})){
+  const label=canonicalCocAttributeLabel(key);
+  attrs[label]=value;
+ }
+ // CoC 的靈感檢定使用智力最終值；知識檢定使用教育最終值。
+ if(attrs['教育']!==undefined&&attrs['教育']!=='')attrs['知識']=attrs['教育'];
+ if(attrs['智力']!==undefined&&attrs['智力']!=='')attrs['靈感']=attrs['智力'];
+ const ordered={};
+ const preferred=['力量','敏捷','意志','體質','外貌','教育','知識','體型','智力','靈感','幸運','HP','MP','SAN','MOV','DB','Build'];
+ for(const key of preferred)if(Object.prototype.hasOwnProperty.call(attrs,key))ordered[key]=attrs[key];
+ for(const [key,value] of Object.entries(attrs))if(!Object.prototype.hasOwnProperty.call(ordered,key))ordered[key]=value;
+ return ordered;
+}
+function hasExplicitSkillCommandSections(raw){
+ const d=unwrapRaw(raw)||{};const commands=typeof d.commands==='string'?d.commands:'';
+ return /\[(?:技能列表|技能清單|戰鬥列表|戰鬥技能列表)\]/i.test(commands);
+}
+function extractFinalCocAttributeCommands(raw){
+ const d=unwrapRaw(raw)||{};const commands=typeof d.commands==='string'?d.commands:'';const result={};let section='';
+ const attrNames=new Set(['力量','敏捷','意志','體質','外貌','教育','知識','體型','智力','靈感','幸運','HP','MP','SAN','MOV','DB','Build']);
+ for(const line of commands.split(/\r?\n/)){
+  const h=line.match(/^\s*\[([^\]]+)\]/);if(h){section=h[1];continue}
+  const m=line.match(/^\s*CC\s*<=\s*(\d+)\s+(.+?)\s*$/i);if(!m)continue;
+  const label=m[2].trim().replace(/[：:]$/,'').trim();const canonical=canonicalCocAttributeLabel(label);
+  if(attrNames.has(canonical)||/屬性/.test(section))result[canonical]=Number(m[1]);
+ }
+ return result;
+}
+
 function mapCocSheetCharacter(url,response){
  const f=extractCocKeyValueFields(response);
  if(!f.character_name && !f.player && !f.occupation && !f.str) return null;
  const attrs={};
  for(const [key,label] of Object.entries(COC_FIELD_LABELS)){
-  if(['str','dex','pow','con','app','edu','siz','int','luck','hp','mp','san','armor'].includes(key)&&!emptyCoc(f[key])) attrs[label]=f[key];
+  if(['str','dex','pow','con','app','edu','know','knowledge','siz','int','idea','inspiration','luck','hp','mp','san','armor'].includes(key)&&!emptyCoc(f[key])) attrs[label]=f[key];
  }
  const skills={};
  for(const [key,label] of Object.entries(COC_FIELD_LABELS)){
-  const isAttr=['str','dex','pow','con','app','edu','siz','int','luck','hp','mp','san','armor','character_name','player','occupation','sex','age','birthplace','residence','personal_description','ideaology_beliefs','significant_people','meaningful_locations','meaningful_location','important_places','importantplaces','important_places_and_reasons','treasured_posessions','traits','phobias_manias','injuries_scars','other_back_story','investigators_notes','gear_and_posessions','spending_level','cash','assets','san_start'].includes(key);
+  const isAttr=['str','dex','pow','con','app','edu','know','knowledge','siz','int','idea','inspiration','luck','hp','mp','san','armor','character_name','player','occupation','sex','age','birthplace','residence','personal_description','ideaology_beliefs','significant_people','meaningful_locations','meaningful_location','important_places','importantplaces','important_places_and_reasons','treasured_posessions','traits','phobias_manias','injuries_scars','other_back_story','investigators_notes','gear_and_posessions','spending_level','cash','assets','san_start'].includes(key);
   if(!isAttr && !emptyCoc(f[key])) skills[label]=f[key];
  }
  // 把角色卡上的自訂技能、額外語言、武器及其他技能也保留下來。
@@ -120,7 +170,7 @@ function mapCocSheetCharacter(url,response){
   importantPeople:first(f.significant_people,f.important_people,f.significantPeople,''),importantPlaces:first(f.meaningful_locations,f.meaningful_location,f.important_places,f.importantPlaces,f.important_places_and_reasons,f.meaningful_locations_description,''),
   possessions:f.treasured_posessions||'',items:f.gear_and_posessions||'',weapons:f.weapon1_name&&f.weapon1_name!=='None'?[{name:f.weapon1_name,damage:f.weapon1_damage||'',range:f.weapon1_range||''}]:[],phobias:f.phobias_manias||'',
   notes,tags:[],favorite:false,status:'active',
-  attributes:attrs,skills,rawCharacter:null,
+  attributes:orderCocAttributes(attrs),skills,rawCharacter:null,
   
   createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()
  };
@@ -153,7 +203,7 @@ function extractVisibleFields(response){
   '職業備忘':['職業備忘','職業補充','職業描述'],
   '力量':['力量','str','strength'],'敏捷':['敏捷','dex','dexterity'],'意志':['意志','pow','power'],
   '體質':['體質','con','constitution'],'外貌':['外貌','app','appearance'],'教育':['教育','edu'],
-  '體型':['體型','siz','size'],'智力':['智力','int','intelligence'],'幸運':['幸運','luck'],
+  '體型':['體型','siz','size'],'智力':['智力','int','intelligence'],'靈感':['靈感','idea','inspiration'],'知識':['知識','know','knowledge'],'幸運':['幸運','luck'],
   'HP':['hp','生命值'],'MP':['mp','魔力'],'SAN':['san','理智值']
  };
  const known=new Map();Object.entries(aliases).forEach(([canonical,names])=>names.forEach(n=>known.set(normalizeLabel(n),canonical)));
@@ -172,28 +222,51 @@ function extractVisibleFields(response){
  return out;
 }
 function mapVisibleFallback(url,response){
- const v=extractVisibleFields(response);const attrNames=['力量','敏捷','意志','體質','外貌','教育','體型','智力','幸運','HP','MP','SAN'];const attributes={};
+ const v=extractVisibleFields(response);const attrNames=['力量','敏捷','意志','體質','外貌','教育','知識','體型','智力','靈感','幸運','HP','MP','SAN'];const attributes={};
  attrNames.forEach(k=>{if(v[k]!==undefined&&v[k]!=='')attributes[k]=v[k]});
  const name=first(v['角色'],v['姓名'],v['角色名稱'],'未命名角色');
  const occupation=first(v['職位'],v['職業'],'');
  const description=first(v['簡介'],'');const backstory=first(v['背景'],'');
- return {id:'CHR-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:String(name),alias:'',work:'',type:'自訂角色／試算表匯入',system:'',occupation:String(occupation),age:String(v['年齡']||''),gender:String(v['性別']||''),player:String(v['玩家']||''),nationality:String(v['國籍']||''),birthplace:String(v['出生地']||''),residence:String(v['居住地']||''),portraitUrl:'',originalImageUrl:'',images:[],description:String(description),backstory:String(backstory),personality:String(v['性格特徵']||''),beliefs:String(v['思想信念']||''),importantPeople:String(v['重要之人']||''),importantPlaces:String(v['意義非凡之地']||''),injuries:String(v['傷勢']||''),possessions:String(v['寶貴之物']||''),items:String(v['隨身物品']||''),phobias:String(v['恐懼症']||''),notes:'',tags:[],favorite:false,status:'active',attributes,skills:{},rawCharacter:null,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+ return {id:'CHR-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:String(name),alias:'',work:'',type:'自訂角色／試算表匯入',system:'',occupation:String(occupation),age:String(v['年齡']||''),gender:String(v['性別']||''),player:String(v['玩家']||''),nationality:String(v['國籍']||''),birthplace:String(v['出生地']||''),residence:String(v['居住地']||''),portraitUrl:'',originalImageUrl:'',images:[],description:String(description),backstory:String(backstory),personality:String(v['性格特徵']||''),beliefs:String(v['思想信念']||''),importantPeople:String(v['重要之人']||''),importantPlaces:String(v['意義非凡之地']||''),injuries:String(v['傷勢']||''),possessions:String(v['寶貴之物']||''),items:String(v['隨身物品']||''),phobias:String(v['恐懼症']||''),notes:'',tags:[],favorite:false,status:'active',attributes:orderCocAttributes(attributes),skills:{},rawCharacter:null,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
 }
 function mapCompleteCharacter(raw,url,response){
  const d=unwrapRaw(raw)||{};const info=d.infos||d.info||d.information||{};const attrs=d.attribs||d.attributes||d.characteristics||{};const statusArr=Array.isArray(d.status)?d.status:[];const paramArr=Array.isArray(d.params)?d.params:[];const visible=extractVisibleFields(response);
- const attrFlat={};for(const [k,v] of Object.entries(attrs)){if(v&&typeof v==='object')attrFlat[v.label||v.name||v.short||k]=v.value??v.current??v.score??v.total??v;else attrFlat[k]=v}
- for(const x of [...statusArr,...paramArr])if(x&&typeof x==='object'){const k=x.label||x.name||x.title;if(k)attrFlat[k]=x.value??x.current??x.max??x.score??''}
- const skills={};if(Array.isArray(d.skills))for(const x of d.skills)if(x&&(x.name||x.label||x.title))skills[x.name||x.label||x.title]=x.value??x.score??x.total??x.base??x;
- if(d.skills&&typeof d.skills==='object'&&!Array.isArray(d.skills))for(const [k,v] of Object.entries(d.skills))skills[v&&typeof v==='object'?(v.label||v.name||k):k]=v&&typeof v==='object'?(v.value??v.total??v.base??v.score??JSON.stringify(v)):v;
- const commands=typeof d.commands==='string'?d.commands:'';let section='';const attrNames=new Set(['力量','敏捷','意志','體質','外貌','教育','體型','智力','幸運','靈感','HP','MP','SAN','MOV','DB','Build']);
- for(const line of commands.split(/\r?\n/)){const h=line.match(/^\s*\[([^\]]+)\]/);if(h){section=h[1];continue}const m=line.match(/^\s*CC\s*<=\s*(\d+)\s+(.+?)\s*$/i);if(!m)continue;const label=m[2].trim(),value=Number(m[1]);if(attrNames.has(label)||/屬性/.test(section)){if(!attrFlat[label])attrFlat[label]=value;}else if(!/SAN|幸運/.test(label)&&!skills[label])skills[label]=value;}
+ const attrFlat={};
+ for(const [k,v] of Object.entries(attrs)){
+  const label=canonicalCocAttributeLabel(v&&typeof v==='object'?(v.label||v.name||v.short||k):k);
+  attrFlat[label]=v&&typeof v==='object'?(v.value??v.current??v.score??v.total??v):v;
+ }
+ for(const x of [...statusArr,...paramArr])if(x&&typeof x==='object'){
+  const rawLabel=x.label||x.name||x.title;if(!rawLabel)continue;
+  const label=canonicalCocAttributeLabel(rawLabel);attrFlat[label]=x.value??x.current??x.max??x.score??'';
+ }
+ const rawSkills={};
+ if(Array.isArray(d.skills))for(const x of d.skills)if(x&&(x.name||x.label||x.title))rawSkills[String(x.name||x.label||x.title).replace(/[：:]$/,'').trim()]=x.value??x.score??x.total??x.base??x;
+ if(d.skills&&typeof d.skills==='object'&&!Array.isArray(d.skills))for(const [k,v] of Object.entries(d.skills))rawSkills[String(v&&typeof v==='object'?(v.label||v.name||k):k).replace(/[：:]$/,'').trim()]=v&&typeof v==='object'?(v.value??v.total??v.base??v.score??JSON.stringify(v)):v;
+ const commands=typeof d.commands==='string'?d.commands:'';
+ const explicitSkillSection=/\[(?:技能列表|技能清單|戰鬥列表|戰鬥技能列表)\]/i.test(commands);
+ const commandSkills={};let section='';
+ const attrNames=new Set(['力量','敏捷','意志','體質','外貌','教育','知識','體型','智力','靈感','幸運','HP','MP','SAN','MOV','DB','Build']);
+ for(const line of commands.split(/\r?\n/)){
+  const h=line.match(/^\s*\[([^\]]+)\]/);if(h){section=h[1];continue}
+  const m=line.match(/^\s*CC\s*<=\s*(\d+)\s+(.+?)\s*$/i);if(!m)continue;
+  const label=m[2].trim().replace(/[：:]$/,'').trim();const value=Number(m[1]);
+  const canonical=canonicalCocAttributeLabel(label);
+  if(attrNames.has(canonical)||/屬性/.test(section)){
+   // CC<= 命令中的數字是可直接用於檢定的最終值，優先於原始 attribs 數值。
+   attrFlat[canonical]=value;
+  }else if(!/^(?:SAN|幸運)$/i.test(label)){
+   commandSkills[label]=value;
+  }
+ }
+ const skills=explicitSkillSection?commandSkills:{...rawSkills,...commandSkills};
  const name=first(d.name,info.name,deepFind(d,['characterName','character_name','角色名稱','姓名','name']),visible['角色'],visible['角色名稱'],visible['姓名'],'未命名角色');
  const jobs=[visible['職位'],visible['職業'],info.occupation,info.job,d.occupation,d.job,deepFind(d,['occupation','job','職業','職業／身份','職位'])].filter(Boolean).map(String);const occupation=[...new Set(jobs)].join('／');
  const age=first(info.age,info.年齡,deepFind(d,['age','年齡','年齢']),visible['年齡']);const gender=first(info.sex,info.gender,info.性別,deepFind(d,['gender','sex','性別']),visible['性別']);
  const player=first(info.playername,info.player,deepFind(d,['player','playername','玩家','玩家名稱']),visible['玩家']);const birthplace=first(info.birthplace,deepFind(d,['birthplace','出生地','出身']),visible['出生地']);const residence=first(info.residence,deepFind(d,['residence','居住地','所在地']),visible['居住地']);const nationality=first(info.nationality,deepFind(d,['nationality','國籍']),visible['國籍']);
  const bio=first(deepFind(d,['description','memo','introduction','簡介','形象描述','外貌']),visible['簡介']);const backstory=first(deepFind(d,['backstory','background','生平','背景資料','背景故事','背景']),visible['背景']);
  const injuries=first(deepFind(d,['injuries','injuries_scars','scars','傷勢及傷痕','傷勢','傷痕']));const beliefs=first(deepFind(d,['beliefs','belief','思想','信念']));const importantPeople=first(deepFind(d,['importantPeople','significantPeople','重要之人','重要人物']));const importantPlaces=first(deepFind(d,['importantPlaces','meaningfulLocations','meaningfulLocation','meaningful_locations','meaningful_location','important_places','important_places_and_reasons','異於常人的力量','意義非凡之地','重要地點']));const possessions=first(deepFind(d,['treasuredPossessions','treasured_posessions','珍愛物品','寶貴之物']));const items=first(deepFind(d,['gear_and_posessions','gearAndPossessions','inventory','carriedItems','隨身物品','裝備與持有物']));const phobias=first(deepFind(d,['phobias','manias','恐懼','恐懼症','癖好']));const personality=first(deepFind(d,['personality','traits','特質','個性']));
- return {id:'CHR-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:String(name),alias:'',work:'',type:'COC／CCFOLIA 角色卡',system:first(d.system,d.ruleset,deepFind(d,['system','ruleset','系統']),'COC 克蘇魯神話 7版'),occupation:toText(occupation),age:toText(age),gender:toText(gender),player:toText(player),nationality:toText(nationality),birthplace:toText(birthplace),residence:toText(residence),portraitUrl:'',originalImageUrl:'',images:[],description:toText(bio),backstory:toText(backstory),personality:toText(personality),beliefs:toText(beliefs),injuries:toText(injuries),importantPeople:toText(importantPeople),importantPlaces:toText(importantPlaces),possessions:toText(possessions),items:toText(items),phobias:toText(phobias),notes:'',tags:[],favorite:false,status:'active',attributes:attrFlat,skills,rawCharacter:raw,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}
+ return {id:'CHR-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:String(name),alias:'',work:'',type:'COC／CCFOLIA 角色卡',system:first(d.system,d.ruleset,deepFind(d,['system','ruleset','系統']),'COC 克蘇魯神話 7版'),occupation:toText(occupation),age:toText(age),gender:toText(gender),player:toText(player),nationality:toText(nationality),birthplace:toText(birthplace),residence:toText(residence),portraitUrl:'',originalImageUrl:'',images:[],description:toText(bio),backstory:toText(backstory),personality:toText(personality),beliefs:toText(beliefs),injuries:toText(injuries),importantPeople:toText(importantPeople),importantPlaces:toText(importantPlaces),possessions:toText(possessions),items:toText(items),phobias:toText(phobias),notes:'',tags:[],favorite:false,status:'active',attributes:orderCocAttributes(attrFlat),skills,rawCharacter:raw,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()}
 }
 async function fetchCharacterLink(){
  const input=document.getElementById('f_sourceUrl'),url=input?.value.trim(),status=document.getElementById('fetchStatus');
@@ -212,8 +285,15 @@ async function fetchCharacterLink(){
   let imported;
   // 優先使用這份 COC 7 版人物卡的欄位索引（AM:AO），避免把試算表中的 JSON 片段誤認為完整 JSON。
   imported=usedResponse?mapCocSheetCharacter(url,usedResponse):null;
-  if(!imported && raw){
-   imported=mapCompleteCharacter(raw,url,usedResponse);
+  if(raw){
+   const fromRaw=mapCompleteCharacter(raw,url,usedResponse);
+   if(imported){
+    // AM:AO 的有值技能欄位先作為備援；若原始角色 JSON 有明確技能清單，就只顯示清單列出的技能。
+    imported.attributes=orderCocAttributes({...fromRaw.attributes,...imported.attributes,...extractFinalCocAttributeCommands(raw)});
+    if(hasExplicitSkillCommandSections(raw)) imported.skills=fromRaw.skills;
+    else if(!Object.keys(imported.skills||{}).length) imported.skills=fromRaw.skills;
+    imported.rawCharacter=raw;
+   }else imported=fromRaw;
    if(!imported.name||imported.name==='未命名角色') imported=null;
   }
   if(!imported){
@@ -234,6 +314,7 @@ async function fetchCharacterLink(){
   const fill=(id,v)=>{const el=document.getElementById('f_'+id);if(el&&v!==undefined&&v!==null&&String(v)!=='')el.value=typeof v==='object'?JSON.stringify(v):String(v)};
   ['name','occupation','system','type','work','age','gender','player','nationality','birthplace','residence','description','backstory','personality','beliefs','importantPeople','importantPlaces','injuries','possessions','items','phobias'].forEach(k=>fill(k,imported[k]));
   fill('tags',tagsOf(imported).join(', '));fill('rawCharacter',imported.rawCharacter?JSON.stringify(imported.rawCharacter,null,2):'');
+  if(typeof renderCharacterDataEditors==='function')renderCharacterDataEditors(imported.attributes||{},imported.skills||{});
   if(status){const base=imported.rawCharacter?`讀取成功：${imported.name}；屬性 ${Object.keys(imported.attributes||{}).length} 項、技能 ${Object.keys(imported.skills||{}).length} 項。`:`已擷取：${imported.name}；屬性 ${Object.keys(imported.attributes||{}).length} 項、技能 ${Object.keys(imported.skills||{}).length} 項。`;status.textContent=base+' 圖片不會從試算表自動擷取，請在編輯頁上方手動上傳。';}
   toast('已讀取角色資料；圖片請在最上方手動上傳。');
  }catch(e){if(status)status.textContent='讀取失敗：'+e.message;toast('讀取失敗：'+e.message)}
