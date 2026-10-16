@@ -157,7 +157,7 @@ function toast(msg){$('toast').textContent=msg;$('toast').classList.add('show');
 function tagsOf(c){return Array.isArray(c.tags)?c.tags: String(c.tags||'').split(/[,，、]/).map(x=>x.trim()).filter(Boolean)}
 function effectiveImages(c){
  const list=Array.isArray(c?.images)?c.images:[];
- const images=[...new Set([...list,c?.portraitUrl,c?.originalImageUrl].filter(x=>typeof x==='string'&&x.trim()))];
+ const images=[...new Set(list.filter(x=>typeof x==='string'&&x.trim()))];
  if(c){c.images=images;delete c.portraitUrl;delete c.originalImageUrl;}
  return images;
 }
@@ -498,7 +498,7 @@ async function saveCharacter(){
  saveLocal();window._pendingFetchedCharacter=null;if(isEditorPage){const savedMessage=old?'角色已更新並同步至 Google Sheets':'角色已新增並同步至 Google Sheets';toast(savedMessage);const syncPromise=syncIfConfigured('upsert',c);syncPromise.then(result=>{if(result?.ok){if(window.opener&&!window.opener.closed){window.close();setTimeout(()=>{if(!window.closed)navigateToGallery()},150)}else navigateToGallery()}else{toast('角色文字未寫入 Google 試算表；請保留此頁，並依「雲端同步失敗」訊息檢查原因。')}});}else{toast('正在儲存角色資料…');syncIfConfigured('upsert',c).then(async result=>{editorSaving=false;if(result?.ok){editorDirty=false;discardingEditorChanges=true;await loadCloudCharacters();closeModal();toast(old?'角色已更新':'角色已新增，已同步至 Google Sheets')}else{toast('角色文字尚未寫入 Google Sheets；請查看雲端錯誤訊息，內容仍保留在本頁。')}});}
 }
 async function deleteCharacter(id){
- if(!confirm('確定要刪除這張角色卡？角色專屬且未被其他角色使用的 Google Drive 圖片也會一併刪除。此操作無法復原。'))return;
+ if(!confirm('確定要刪除這張角色卡？此角色的 Google Drive 圖片也會一併刪除。此操作無法復原。'))return;
  characters=characters.filter(c=>c.id!==id);saveLocal();cloudLoadVersion++;
  if(isEditorPage){
   toast('正在刪除角色與雲端圖片…');
@@ -634,7 +634,7 @@ function importFile(file){
   }catch(e){toast('匯入失敗：請確認檔案是有效的 CSV 或 JSON')}
  };reader.readAsText(file,'UTF-8');
 }
-function normalizeImported(x,i){const value={...{id:'CHR-'+Date.now().toString().slice(-7)+i,name:'未命名角色',alias:'',work:'',type:'自訂角色',system:'',occupation:'',age:'',gender:'',player:'',nationality:'',images:[],sourceUrl:'',description:'',backstory:'',personality:'',beliefs:'',importantPeople:'',importantPlaces:'',specialAbilities:'',injuries:'',possessions:'',phobias:'',attributes:{},skills:{},tags:[],favorite:false,notes:'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()},...x,id:x.id||('CHR-'+Date.now().toString().slice(-7)+i),tags:Array.isArray(x.tags)?x.tags:String(x.tags||'').split(/[,，、]/).map(t=>t.trim()).filter(Boolean)};value.images=[...new Set([...(Array.isArray(value.images)?value.images:[]),value.portraitUrl,value.originalImageUrl].filter(v=>typeof v==='string'&&v.trim()))];delete value.portraitUrl;delete value.originalImageUrl;return value}
+function normalizeImported(x,i){const value={...{id:'CHR-'+Date.now().toString().slice(-7)+i,name:'未命名角色',alias:'',work:'',type:'自訂角色',system:'',occupation:'',age:'',gender:'',player:'',nationality:'',images:[],sourceUrl:'',description:'',backstory:'',personality:'',beliefs:'',importantPeople:'',importantPlaces:'',specialAbilities:'',injuries:'',possessions:'',phobias:'',attributes:{},skills:{},tags:[],favorite:false,notes:'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()},...x,id:x.id||('CHR-'+Date.now().toString().slice(-7)+i),tags:Array.isArray(x.tags)?x.tags:String(x.tags||'').split(/[,，、]/).map(t=>t.trim()).filter(Boolean)};value.images=[...new Set((Array.isArray(value.images)?value.images:[]).filter(v=>typeof v==='string'&&v.trim()))];delete value.portraitUrl;delete value.originalImageUrl;return value}
 function setCurrentFilter(filter){
  currentFilter=filter||'all';
  document.querySelectorAll('#filters .chip').forEach(x=>x.classList.toggle('active',x.dataset.filter===currentFilter));

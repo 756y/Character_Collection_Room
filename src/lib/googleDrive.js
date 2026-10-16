@@ -526,10 +526,9 @@ function combineCategoryCells(row) {
 
 async function prepareCharacter(character) {
   const copy = structuredClone(character || {})
-  // 單一圖片來源：把舊欄位的連結遷移到 images，之後不再寫回舊欄位。
-  const legacyImages = [copy.portraitUrl, copy.originalImageUrl].filter(value => typeof value === 'string' && value.trim())
+  // 新資料庫只使用 images；不再讀取或轉換 portraitUrl / originalImageUrl。
   const currentImages = Array.isArray(copy.images) ? copy.images : []
-  copy.images = [...new Set([...currentImages, ...legacyImages].filter(value => typeof value === 'string' && value.trim()))]
+  copy.images = [...new Set(currentImages.filter(value => typeof value === 'string' && value.trim()))]
   delete copy.portraitUrl
   delete copy.originalImageUrl
   const legacyId = String(copy.id || copy.legacyId || `CHR-${Date.now()}`)
@@ -564,9 +563,8 @@ async function prepareCharacter(character) {
 
 async function hydrateCharacter(row) {
   const character = { ...(row.content || {}) }
-  // 舊雲端資料相容：讀取時將兩個舊欄位併入 images，並從記憶體物件移除。
-  const legacyImages = [character.portraitUrl, character.originalImageUrl].filter(value => typeof value === 'string' && value.trim())
-  character.images = [...new Set([...(Array.isArray(character.images) ? character.images : []), ...legacyImages].filter(value => typeof value === 'string' && value.trim()))]
+  // 圖片只從 images 讀取，不再處理其他圖片欄位。
+  character.images = [...new Set((Array.isArray(character.images) ? character.images : []).filter(value => typeof value === 'string' && value.trim()))]
   delete character.portraitUrl
   delete character.originalImageUrl
   character.id = character.legacyId || row.id
@@ -652,8 +650,6 @@ async function saveOne(character) {
   const prepared = await prepareCharacter(character)
   const legacyId = String(prepared.legacyId || prepared.id || `CHR-${Date.now()}`)
   const id = await ensureSpreadsheet()
-  const rows = await readRows()
-  const existing = rows.find(row => row.id === legacyId)
   const categories = partitionCharacter(prepared)
   const categoryNames = ['basic_info_json', 'attributes_json', 'skills_json', 'story_json', 'items_weapons_json', 'extra_json', 'images_json']
   const oversized = categories.findIndex(value => value.length > 49000)
@@ -661,68 +657,73 @@ async function saveOne(character) {
     throw new Error(`角色「${prepared.name || '未命名角色'}」的「${categoryNames[oversized]}」有 ${categories[oversized].length.toLocaleString()} 個字元，接近 Google Sheets 每格 50,000 字元上限。這次尚未寫入角色資料；請檢查該分類是否含有重複的原始 JSON。`)
   }
   const values = [[legacyId, String(prepared.name || '未命名角色'), ...categories, new Date().toISOString(), ...Array(17).fill('')]]
-  // A:AA is written once so legacy JSON fragments in K:AA are cleared for this row.
-
+  // 編輯時沿用已知資料列，只讀取該角色一列取得舊圖片 ID；不掃描整張表。
+  // 新增時直接使用 Sheets values.append，讓 Google 找到表格末端並回傳實際新增列。
+  let rowNumber = Number(prepared.cloudDbId) || 0
+  let existing = null
   let writeResult
   try {
+    if (rowNumber >= 2) {
+      const oldRange = sheetRange(`A${rowNumber}:J${rowNumber}`)
+      const oldResult = await apiFetch(`${SHEETS_API}/${id}/values/${encodeSheetRange(oldRange)}`)
+      const oldValues = oldResult.values?.[0] || []
+      if (String(oldValues[0] || '') === legacyId) {
+        existing = { rowNumber, id: String(oldValues[0]), title: oldValues[1] || '', content: cleanForStorage(combineCategoryCells(oldValues)) || {} }
+      } else {
+        rowNumber = 0
+      }
+    }
     if (existing) {
-      const range = sheetRange(`A${existing.rowNumber}:AA${existing.rowNumber}`)
+      const range = sheetRange(`A${rowNumber}:AA${rowNumber}`)
       writeResult = await apiFetch(`${SHEETS_API}/${id}/values/${encodeSheetRange(range)}?valueInputOption=RAW`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ values }),
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ values }),
       })
     } else {
-      // Avoid append endpoint/range parsing inconsistencies: read the actual used range,
-      // then write the new record to an explicit row using values.update.
-      const grid = await apiFetch(`${SHEETS_API}/${id}/values/${encodeSheetRange(sheetRange('A:AA'))}`)
-      const nextRow = Math.max(2, (grid.values || []).length + 1)
-      const range = sheetRange(`A${nextRow}:AA${nextRow}`)
-      writeResult = await apiFetch(`${SHEETS_API}/${id}/values/${encodeSheetRange(range)}?valueInputOption=RAW`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ values }),
+      const appendRange = sheetRange('A:AA')
+      writeResult = await apiFetch(`${SHEETS_API}/${id}/values/${encodeSheetRange(appendRange)}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ values }),
       })
-      if (Number(writeResult?.updatedRows || 0) < 1) {
-        throw new Error(`Google API 沒有確認寫入資料列 ${nextRow}；請確認試算表可編輯且工作表沒有保護限制。`)
+      const updatedRange = String(writeResult?.updates?.updatedRange || '')
+      const match = updatedRange.match(/![A-Z]+(\d+):/i)
+      rowNumber = match ? Number(match[1]) : 0
+      if (!rowNumber || Number(writeResult?.updates?.updatedRows || 0) < 1) {
+        throw new Error('Google Sheets 未回傳有效的新增資料列，請重新載入角色清單確認是否已新增，避免重複點擊再次建立。')
       }
     }
   } catch (error) {
     throw new Error(`Google 試算表寫入失敗。圖片可能已上傳，但角色文字尚未儲存。${error?.message ? ` Google API 回覆：${error.message}` : ''}`)
   }
 
-  const savedRows = await readRows()
-  const confirmed = savedRows.find(row => row.id === legacyId)
-  if (!confirmed) {
-    const range = writeResult?.updates?.updatedRange || writeResult?.updatedRange || '未知範圍'
+  // 保留必要的寫入確認，但只讀取剛寫入的單列。
+  const verifyRange = sheetRange(`A${rowNumber}:J${rowNumber}`)
+  const verifyResult = await apiFetch(`${SHEETS_API}/${id}/values/${encodeSheetRange(verifyRange)}`)
+  const verifiedValues = verifyResult.values?.[0] || []
+  if (String(verifiedValues[0] || '') !== legacyId) {
+    const range = writeResult?.updates?.updatedRange || '未知範圍'
     const targetUrl = `https://docs.google.com/spreadsheets/d/${id}/edit`
     throw new Error(`Google API 回報寫入範圍「${range}」，但重新讀取時找不到角色 ID「${legacyId}」。本次實際使用的試算表是：${targetUrl}，分頁「${SHEET_NAME}」。請直接開啟這個連結，避免查看到另一份同名試算表。`)
   }
-  console.info('[Character Collection Room] Verified character row:', { id: legacyId, spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${id}/edit`, sheet: SHEET_NAME, row: confirmed.rowNumber })
-  if (!confirmed.content || Object.keys(confirmed.content).length === 0) {
-    throw new Error(`試算表中找到角色 ID「${legacyId}」，但角色 JSON 分類欄位是空的。請確認 C:I 欄未被手動調整。`)
+  const confirmed = {
+    rowNumber, id: legacyId,
+    title: verifiedValues[1] || '未命名角色',
+    content: cleanForStorage(combineCategoryCells(verifiedValues)) || {},
+    updatedAt: verifiedValues[9] || '',
   }
-  // After the new row is confirmed, remove only old Drive images no longer referenced
-  // by any character. This also covers removing one image while keeping the character.
+  if (!confirmed.content || Object.keys(confirmed.content).length === 0) {
+    throw new Error(`試算表中找到角色 ID「${legacyId}」，但角色 JSON 分類欄位是空的。請確認試算表 C:I 欄未被手動調整。`)
+  }
+
   let imageCleanupWarning = ''
   if (existing) {
     const previousImageIds = collectDriveImageIds(existing.content)
-    const stillUsedImageIds = new Set()
-    for (const row of savedRows) collectDriveImageIds(row.content, stillUsedImageIds)
-    const removableImageIds = [...previousImageIds].filter(fileId => !stillUsedImageIds.has(fileId))
-    const failures = []
-    for (const fileId of removableImageIds) {
-      try {
-        await apiFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}`, { method: 'DELETE' })
-      } catch (error) {
-        console.error('[Character Collection Room] Failed to delete removed image from Google Drive:', fileId, error)
-        failures.push(`${fileId}: ${error?.message || String(error)}`)
-      }
-    }
+    const currentImageIds = collectDriveImageIds(confirmed.content)
+    const removableImageIds = [...previousImageIds].filter(fileId => !currentImageIds.has(fileId))
+    const cleanupResults = await Promise.allSettled(removableImageIds.map(fileId => apiFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}`, { method: 'DELETE' })))
+    const failures = cleanupResults.filter(result => result.status === 'rejected')
     if (failures.length) imageCleanupWarning = `角色資料已保存，但有 ${failures.length} 張已移除的圖片未能從 Google Drive 刪除。請確認 Drive 權限；詳情請查看瀏覽器主控台。`
   }
-  const hydrated = await hydrateCharacter(confirmed)
-  return { ok: true, id: legacyId, character: hydrated, ...(imageCleanupWarning ? { warning: imageCleanupWarning } : {}) }
+  const savedCharacter = { ...prepared, id: prepared.legacyId || legacyId, cloudDbId: rowNumber, name: prepared.name || confirmed.title }
+  return { ok: true, id: legacyId, character: savedCharacter, ...(imageCleanupWarning ? { warning: imageCleanupWarning } : {}) }
 }
 
 function collectDriveImageIds(value, ids = new Set()) {
@@ -737,27 +738,19 @@ function collectDriveImageIds(value, ids = new Set()) {
   return ids
 }
 
-async function deleteCharacterImagesIfUnused(deletedRow, rows) {
-  const candidateIds = collectDriveImageIds(deletedRow?.content)
-  if (!candidateIds.size) return { deleted: 0, warning: '' }
-  const stillUsed = new Set()
-  for (const row of rows) {
-    if (row.id !== deletedRow.id) collectDriveImageIds(row.content, stillUsed)
-  }
-  const removable = [...candidateIds].filter(id => !stillUsed.has(id))
-  const failures = []
-  let deleted = 0
-  for (const fileId of removable) {
-    try {
-      await apiFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}`, { method: 'DELETE' })
-      deleted += 1
-    } catch (error) {
-      failures.push(`${fileId}: ${error?.message || String(error)}`)
-    }
-  }
+async function deleteCharacterImages(deletedRow) {
+  // 新資料庫不跨角色共用圖片，因此刪除角色時可直接清理該角色引用的圖片。
+  // 多張圖片並行刪除，避免逐張等待網路回應；失敗仍會回報，不會假裝已刪除。
+  const candidateIds = [...collectDriveImageIds(deletedRow?.content)]
+  if (!candidateIds.length) return { deleted: 0, warning: '' }
+  const results = await Promise.allSettled(candidateIds.map(fileId =>
+    apiFetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}`, { method: 'DELETE' })
+  ))
+  const deleted = results.filter(result => result.status === 'fulfilled').length
+  const failures = results.length - deleted
   return {
     deleted,
-    warning: failures.length ? `角色已刪除，但有 ${failures.length} 張圖片未能從 Google Drive 刪除。可稍後手動清理。` : '',
+    warning: failures ? `角色已刪除，但有 ${failures} 張圖片未能從 Google Drive 刪除。可稍後手動清理。` : '',
   }
 }
 
@@ -765,18 +758,29 @@ export async function syncCharacters(action, payload, currentCharacters = []) {
   await ensureSpreadsheet()
   if (action === 'delete') {
     const legacyId = String(payload?.id || '')
-    const rows = await readRows()
-    const row = rows.find(item => item.id === legacyId || item.content?.legacyId === legacyId || item.content?.id === legacyId)
+    // 清單中的 cloudDbId 是實際資料列，優先使用它；只有缺少列號時才退回掃描。
+    const localMatch = currentCharacters.find(item => String(item.id) === legacyId || String(item.legacyId || '') === legacyId)
+    let rowNumber = Number(localMatch?.cloudDbId) || 0
+    let row = null
+    if (rowNumber >= 2) {
+      const range = sheetRange(`A${rowNumber}:J${rowNumber}`)
+      const result = await apiFetch(`${SHEETS_API}/${spreadsheetId}/values/${encodeSheetRange(range)}`)
+      const values = result.values?.[0] || []
+      if (String(values[0] || '') === legacyId) {
+        row = { rowNumber, id: legacyId, title: values[1] || '', content: cleanForStorage(combineCategoryCells(values)) || {} }
+      }
+    }
+    if (!row) {
+      const rows = await readRows()
+      row = rows.find(item => item.id === legacyId || item.content?.legacyId === legacyId || item.content?.id === legacyId)
+    }
     if (!row) return { ok: true, deletedImages: 0 }
-    const sheetId = await getDefaultSheetId()
-    await apiFetch(`${SHEETS_API}/${spreadsheetId}:batchUpdate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: row.rowNumber - 1, endIndex: row.rowNumber } } }] }),
+    // 清空該列而非刪除整個 row，避免其餘角色的 cloudDbId 全部位移；空白列不影響清單讀取。
+    const clearRange = sheetRange(`A${row.rowNumber}:AA${row.rowNumber}`)
+    await apiFetch(`${SHEETS_API}/${spreadsheetId}/values/${encodeSheetRange(clearRange)}:clear`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}),
     })
-    // Remove only images no other character references. The sheet row is deleted
-    // first, so a Drive cleanup failure cannot resurrect the character.
-    const imageCleanup = await deleteCharacterImagesIfUnused(row, rows)
+    const imageCleanup = await deleteCharacterImages(row)
     return { ok: true, deletedImages: imageCleanup.deleted, warning: imageCleanup.warning }
   }
   if (action === 'import' && Array.isArray(payload)) {
