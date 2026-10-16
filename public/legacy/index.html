@@ -157,7 +157,9 @@ function toast(msg){$('toast').textContent=msg;$('toast').classList.add('show');
 function tagsOf(c){return Array.isArray(c.tags)?c.tags: String(c.tags||'').split(/[,，、]/).map(x=>x.trim()).filter(Boolean)}
 function effectiveImages(c){
  const list=Array.isArray(c?.images)?c.images:[];
- return [...new Set([...list,c?.portraitUrl,c?.originalImageUrl].filter(x=>typeof x==='string'&&x.trim()))];
+ const images=[...new Set([...list,c?.portraitUrl,c?.originalImageUrl].filter(x=>typeof x==='string'&&x.trim()))];
+ if(c){c.images=images;delete c.portraitUrl;delete c.originalImageUrl;}
+ return images;
 }
 function effectiveImage(c){return effectiveImages(c)[0]||''}
 let imageIndexes={};
@@ -448,7 +450,7 @@ function openEditor(id){
   return;
  }
  editingId=id||null;editorDirty=false;editorSaving=false;discardingEditorChanges=false;
- const c=(id?characters.find(x=>x.id===id):null)||{name:'',alias:'',work:'',type:'自訂角色',system:'',occupation:'',age:'',gender:'',player:'',nationality:'',portraitUrl:'',originalImageUrl:'',images:[],sourceUrl:'',description:'',backstory:'',personality:'',beliefs:'',importantPeople:'',importantPlaces:'',specialAbilities:'',injuries:'',possessions:'',phobias:'',tags:[],favorite:false,notes:'',attributes:{},skills:{}};
+ const c=(id?characters.find(x=>x.id===id):null)||{name:'',alias:'',work:'',type:'自訂角色',system:'',occupation:'',age:'',gender:'',player:'',nationality:'',images:[],sourceUrl:'',description:'',backstory:'',personality:'',beliefs:'',importantPeople:'',importantPlaces:'',specialAbilities:'',injuries:'',possessions:'',phobias:'',tags:[],favorite:false,notes:'',attributes:{},skills:{}};
  window._editingImages=effectiveImages(c).slice();
  openModal('角色頁面',`
  <section class="image-editor-panel"><div class="image-editor-heading"><div><strong>角色圖片</strong><div class="image-help">上方一次顯示一張；可左右滑動或按箭頭切換，最多 10 張。</div></div></div><div id="imageManager" class="image-manager"></div><div class="image-upload-row"><label class="image-upload-button secondary" for="f_imageFiles">＋ 上傳圖片（可多選）</label><input class="hidden" id="f_imageFiles" type="file" accept="image/*" multiple onchange="handleImageFiles(this.files)"></div></section>
@@ -475,19 +477,23 @@ function openEditor(id){
  <div class="field full"><label>私人備註</label><textarea id="f_notes">${esc(c.notes)}</textarea><small>備註會隨角色資料一起保存。</small></div>
  <div class="field full"><label><input type="checkbox" id="f_favorite" ${c.favorite?'checked':''} style="width:auto"> 加入收藏</label></div>
  </div>
- <div class="modal-actions"><div>${id?`<button class="danger" onclick="deleteCharacter('${id}')">刪除角色</button>`:''}</div><div class="right"><button class="secondary" onclick="cancelEditor()">取消</button><button class="primary" onclick="saveCharacter()">儲存角色</button></div></div>`);
+ <div class="modal-actions"><div>${id?`<button class="danger" onclick="deleteCharacter('${id}')">刪除角色</button>`:''}</div><div class="right"><button class="secondary" onclick="cancelEditor()">取消</button><button class="primary" id="saveCharacterBtn" onclick="saveCharacter()">儲存角色</button></div></div>`);
  renderImageManager();
  bindEditorDirtyTracking();
 }
 async function saveCharacter(){
- const val=id=>document.getElementById('f_'+id)?.value||'';
- const name=val('name').trim();if(!name){toast('請先填寫角色名稱');$('f_name').focus();return}
+ // 防止雲端儲存較慢時重複點擊，造成同一角色被建立多次。
+ if(editorSaving)return;
  editorSaving=true;
- const linkRows=Array.from(document.querySelectorAll('#documentLinkList .document-link-row'));
- await Promise.all(linkRows.map(row=>resolveDocumentName(row.querySelector('.document-url'),{silent:true})));
+ const saveButton=document.getElementById('saveCharacterBtn');
+ if(saveButton){saveButton.disabled=true;saveButton.textContent='正在儲存…';saveButton.setAttribute('aria-busy','true')}
+ const releaseSaveButton=()=>{editorSaving=false;if(saveButton){saveButton.disabled=false;saveButton.textContent='儲存角色';saveButton.removeAttribute('aria-busy')}};
+ const val=id=>document.getElementById('f_'+id)?.value||'';
+ const name=val('name').trim();if(!name){releaseSaveButton();toast('請先填寫角色名稱');$('f_name').focus();return}
+ // 不在儲存流程中等待外部文件標題查詢；連結名稱可在離開欄位時自動讀取。
  const old=editingId?characters.find(x=>x.id===editingId):null;
  const editedImages=(window._editingImages||[]).slice();
- const c={...(old||{}),id:old?.id||('CHR-'+Date.now().toString().slice(-8)),name,alias:old?.alias||'',occupation:val('occupation'),system:val('system'),type:old?.type||'自訂角色',work:old?.work||'',age:val('age'),gender:val('gender'),player:val('player'),nationality:val('nationality'),sourceUrl:val('sourceUrl'),documentLinks:collectDocumentLinks(),portraitUrl:editedImages.includes(old?.portraitUrl)?old.portraitUrl:(editedImages[0]||''),originalImageUrl:editedImages.includes(old?.originalImageUrl)?old.originalImageUrl:(editedImages[0]||''),images:editedImages,tags:val('tags').split(/[,，、]/).map(x=>x.trim()).filter(Boolean),description:val('description'),backstory:val('backstory'),personality:val('personality'),beliefs:val('beliefs'),importantPeople:val('importantPeople'),importantPlaces:val('importantPlaces'),specialAbilities:old?.specialAbilities||'',injuries:val('injuries'),possessions:val('possessions'),phobias:val('phobias'),notes:val('notes'),favorite:$('f_favorite').checked,attributes:old?.attributes||window._pendingFetchedCharacter?.attributes||{},skills:old?.skills||window._pendingFetchedCharacter?.skills||{},rawCharacter:(()=>{const t=val('rawCharacter').trim();if(t){try{return JSON.parse(t)}catch(e){toast('完整原始資料不是有效 JSON，已保留原本資料');return old?.rawCharacter||window._pendingFetchedCharacter?.rawCharacter||null}}return old?.rawCharacter||window._pendingFetchedCharacter?.rawCharacter||null})(),rawSourceCells:old?.rawSourceCells||window._pendingFetchedCharacter?.rawSourceCells||null,createdAt:old?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+ const c={...(old||{}),id:old?.id||('CHR-'+Date.now().toString().slice(-8)),name,alias:old?.alias||'',occupation:val('occupation'),system:val('system'),type:old?.type||'自訂角色',work:old?.work||'',age:val('age'),gender:val('gender'),player:val('player'),nationality:val('nationality'),sourceUrl:val('sourceUrl'),documentLinks:collectDocumentLinks(),images:[...new Set(editedImages.filter(image=>typeof image==='string'&&image.trim()))],tags:val('tags').split(/[,，、]/).map(x=>x.trim()).filter(Boolean),description:val('description'),backstory:val('backstory'),personality:val('personality'),beliefs:val('beliefs'),importantPeople:val('importantPeople'),importantPlaces:val('importantPlaces'),specialAbilities:old?.specialAbilities||'',injuries:val('injuries'),possessions:val('possessions'),phobias:val('phobias'),notes:val('notes'),favorite:$('f_favorite').checked,attributes:old?.attributes||window._pendingFetchedCharacter?.attributes||{},skills:old?.skills||window._pendingFetchedCharacter?.skills||{},rawCharacter:(()=>{const t=val('rawCharacter').trim();if(t){try{return JSON.parse(t)}catch(e){toast('完整原始資料不是有效 JSON，已保留原本資料');return old?.rawCharacter||window._pendingFetchedCharacter?.rawCharacter||null}}return old?.rawCharacter||window._pendingFetchedCharacter?.rawCharacter||null})(),rawSourceCells:old?.rawSourceCells||window._pendingFetchedCharacter?.rawSourceCells||null,createdAt:old?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
  if(old){characters=characters.map(x=>x.id===old.id?c:x)}else{characters.unshift(c)}
  saveLocal();window._pendingFetchedCharacter=null;if(isEditorPage){const savedMessage=old?'角色已更新並同步至 Google Sheets':'角色已新增並同步至 Google Sheets';toast(savedMessage);const syncPromise=syncIfConfigured('upsert',c);syncPromise.then(result=>{if(result?.ok){if(window.opener&&!window.opener.closed){window.close();setTimeout(()=>{if(!window.closed)navigateToGallery()},150)}else navigateToGallery()}else{toast('角色文字未寫入 Google 試算表；請保留此頁，並依「雲端同步失敗」訊息檢查原因。')}});}else{toast('正在儲存角色資料…');syncIfConfigured('upsert',c).then(async result=>{editorSaving=false;if(result?.ok){editorDirty=false;discardingEditorChanges=true;await loadCloudCharacters();closeModal();toast(old?'角色已更新':'角色已新增，已同步至 Google Sheets')}else{toast('角色文字尚未寫入 Google Sheets；請查看雲端錯誤訊息，內容仍保留在本頁。')}});}
 }
@@ -620,7 +626,7 @@ function importFile(file){
     else{
      const idx=(...names)=>header.findIndex(h=>names.some(n=>h===n||h.includes(n)));
      const ni=idx('name','角色','姓名'),oi=idx('occupation','職業','職位'),ai=idx('age','年齡'),gi=idx('gender','性別'),si=idx('system','系統'),di=idx('description','簡介','背景'),pi=idx('portrait_url','image','img','圖片','封面');
-     if(ni>=0){added=rows.slice(1).filter(r=>r[ni]).map((r,i)=>normalizeImported({name:r[ni],occupation:oi>=0?r[oi]:'',age:ai>=0?r[ai]:'',gender:gi>=0?r[gi]:'',system:si>=0?r[si]:'',description:di>=0?r[di]:'',originalImageUrl:pi>=0?r[pi]:''},i))}
+     if(ni>=0){added=rows.slice(1).filter(r=>r[ni]).map((r,i)=>normalizeImported({name:r[ni],occupation:oi>=0?r[oi]:'',age:ai>=0?r[ai]:'',gender:gi>=0?r[gi]:'',system:si>=0?r[si]:'',description:di>=0?r[di]:'',images:pi>=0&&r[pi]?[r[pi]]:[]},i))}
      else throw new Error('這份 CSV 不是可辨識的角色卡格式，請確認檔案內容。');
     }
    }
@@ -628,7 +634,7 @@ function importFile(file){
   }catch(e){toast('匯入失敗：請確認檔案是有效的 CSV 或 JSON')}
  };reader.readAsText(file,'UTF-8');
 }
-function normalizeImported(x,i){return {...{id:'CHR-'+Date.now().toString().slice(-7)+i,name:'未命名角色',alias:'',work:'',type:'自訂角色',system:'',occupation:'',age:'',gender:'',player:'',nationality:'',portraitUrl:'',originalImageUrl:'',sourceUrl:'',description:'',backstory:'',personality:'',beliefs:'',importantPeople:'',importantPlaces:'',specialAbilities:'',injuries:'',possessions:'',phobias:'',attributes:{},skills:{},tags:[],favorite:false,notes:'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()},...x,id:x.id||('CHR-'+Date.now().toString().slice(-7)+i),tags:Array.isArray(x.tags)?x.tags:String(x.tags||'').split(/[,，、]/).map(t=>t.trim()).filter(Boolean)}}
+function normalizeImported(x,i){const value={...{id:'CHR-'+Date.now().toString().slice(-7)+i,name:'未命名角色',alias:'',work:'',type:'自訂角色',system:'',occupation:'',age:'',gender:'',player:'',nationality:'',images:[],sourceUrl:'',description:'',backstory:'',personality:'',beliefs:'',importantPeople:'',importantPlaces:'',specialAbilities:'',injuries:'',possessions:'',phobias:'',attributes:{},skills:{},tags:[],favorite:false,notes:'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()},...x,id:x.id||('CHR-'+Date.now().toString().slice(-7)+i),tags:Array.isArray(x.tags)?x.tags:String(x.tags||'').split(/[,，、]/).map(t=>t.trim()).filter(Boolean)};value.images=[...new Set([...(Array.isArray(value.images)?value.images:[]),value.portraitUrl,value.originalImageUrl].filter(v=>typeof v==='string'&&v.trim()))];delete value.portraitUrl;delete value.originalImageUrl;return value}
 function setCurrentFilter(filter){
  currentFilter=filter||'all';
  document.querySelectorAll('#filters .chip').forEach(x=>x.classList.toggle('active',x.dataset.filter===currentFilter));

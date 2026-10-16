@@ -449,7 +449,7 @@ const CATEGORY_FIELDS = {
   skills: ['skills'],
   story: ['description', 'backstory', 'personality', 'beliefs', 'importantPeople', 'importantPlaces', 'injuries', 'phobias', 'possessions', 'treasuredPossessions', 'story', 'history'],
   items: ['items', 'weapons', 'weapon', 'equipment', 'inventory', 'cash', 'money', 'currency', 'belongings', 'carriedItems', 'itemsAndWeapons', 'items_weapons'],
-  images: ['images', 'portraitUrl', 'originalImageUrl', 'imageUrl', 'imageUrls', 'photos', 'gallery'],
+  images: ['images', 'imageUrl', 'imageUrls', 'photos', 'gallery'],
 }
 const isIsoTimestamp = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)
 
@@ -526,42 +526,66 @@ function combineCategoryCells(row) {
 
 async function prepareCharacter(character) {
   const copy = structuredClone(character || {})
+  // 單一圖片來源：把舊欄位的連結遷移到 images，之後不再寫回舊欄位。
+  const legacyImages = [copy.portraitUrl, copy.originalImageUrl].filter(value => typeof value === 'string' && value.trim())
+  const currentImages = Array.isArray(copy.images) ? copy.images : []
+  copy.images = [...new Set([...currentImages, ...legacyImages].filter(value => typeof value === 'string' && value.trim()))]
+  delete copy.portraitUrl
+  delete copy.originalImageUrl
   const legacyId = String(copy.id || copy.legacyId || `CHR-${Date.now()}`)
   copy.legacyId = legacyId
   const imageMap = copy._cloudImageMap || {}
+  // 同一個 data URL 在本次儲存中只上傳一次。
+  const pendingImageUploads = new Map()
   const preserveOrUpload = async (value, index) => {
     if (typeof value !== 'string') return value
     if (imageMap[value]) return `drive://${imageMap[value].replace(/^drive:\/\//, '')}`
     if (value.startsWith('drive://')) return value
-    if (isDataImage(value)) return uploadImage(value, legacyId, index)
+    if (isDataImage(value)) {
+      if (!pendingImageUploads.has(value)) pendingImageUploads.set(value, uploadImage(value, legacyId, index))
+      return pendingImageUploads.get(value)
+    }
     return value
   }
-  const images = Array.isArray(copy.images) ? copy.images : []
-  copy.images = await Promise.all(images.map((image, index) => preserveOrUpload(image, index)))
-  for (const field of ['portraitUrl', 'originalImageUrl']) {
-    if (copy[field]) copy[field] = await preserveOrUpload(copy[field], field)
+  // images 是唯一正式圖片欄位；先去除重複連結再上傳。
+  const sourceImages = Array.isArray(copy.images) ? copy.images : []
+  const uniqueImages = []
+  const seenImageValues = new Set()
+  for (const image of sourceImages) {
+    const key = typeof image === 'string' ? image.trim() : image
+    if (!key || seenImageValues.has(key)) continue
+    seenImageValues.add(key)
+    uniqueImages.push(image)
   }
+  copy.images = await Promise.all(uniqueImages.map((image, index) => preserveOrUpload(image, index)))
   delete copy._cloudImageMap
   return copy
 }
 
 async function hydrateCharacter(row) {
   const character = { ...(row.content || {}) }
+  // 舊雲端資料相容：讀取時將兩個舊欄位併入 images，並從記憶體物件移除。
+  const legacyImages = [character.portraitUrl, character.originalImageUrl].filter(value => typeof value === 'string' && value.trim())
+  character.images = [...new Set([...(Array.isArray(character.images) ? character.images : []), ...legacyImages].filter(value => typeof value === 'string' && value.trim()))]
+  delete character.portraitUrl
+  delete character.originalImageUrl
   character.id = character.legacyId || row.id
   character.cloudDbId = row.rowNumber
   character.name = character.name || row.title || '未命名角色'
   const imageMap = {}
+  const resolvedByDriveId = new Map()
   const resolveAndRemember = async value => {
     if (typeof value !== 'string' || !value.startsWith('drive://')) return value
     const id = value.slice('drive://'.length)
-    const resolved = await resolveImage(value)
+    let resolved = resolvedByDriveId.get(id)
+    if (!resolved) {
+      resolved = await resolveImage(value)
+      resolvedByDriveId.set(id, resolved)
+    }
     imageMap[resolved] = id
     return resolved
   }
   if (Array.isArray(character.images)) character.images = await Promise.all(character.images.map(resolveAndRemember))
-  for (const field of ['portraitUrl', 'originalImageUrl']) {
-    if (character[field]) character[field] = await resolveAndRemember(character[field])
-  }
   character._cloudImageMap = imageMap
   return character
 }

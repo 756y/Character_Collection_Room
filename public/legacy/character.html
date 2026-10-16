@@ -68,6 +68,20 @@ body.editor-mode{background:var(--bg)}body.editor-mode .wrap{display:none}body.e
 .card-link-actions .link-sheets:hover{background:#d7efdf}
 .card-link-actions .link-docs:hover{background:#d9e7ff}
 .card-link-actions .link-youtube:hover{background:#d9002b}
+
+/* Mobile-safe brand colors: override generic button and media-query styles. */
+.card-link-actions button.link-sheets,
+.card-link-actions button.link-sheets:focus,
+.card-link-actions button.link-sheets:active { color:#188038 !important; background:#e6f4ea !important; border:1px solid #cce8d4 !important; }
+.card-link-actions button.link-docs,
+.card-link-actions button.link-docs:focus,
+.card-link-actions button.link-docs:active { color:#1a73e8 !important; background:#e8f0fe !important; border:1px solid #d2e3fc !important; }
+.card-link-actions button.link-youtube,
+.card-link-actions button.link-youtube:focus,
+.card-link-actions button.link-youtube:active { color:#fff !important; background:#ff0033 !important; border:1px solid #ff0033 !important; }
+.card-link-actions button.link-sheets svg,
+.card-link-actions button.link-docs svg,
+.card-link-actions button.link-youtube svg { display:block !important; width:18px !important; height:18px !important; }
 </style>
 </head>
 <body class="editor-mode">
@@ -157,7 +171,9 @@ function toast(msg){$('toast').textContent=msg;$('toast').classList.add('show');
 function tagsOf(c){return Array.isArray(c.tags)?c.tags: String(c.tags||'').split(/[,，、]/).map(x=>x.trim()).filter(Boolean)}
 function effectiveImages(c){
  const list=Array.isArray(c?.images)?c.images:[];
- return [...new Set([...list,c?.portraitUrl,c?.originalImageUrl].filter(x=>typeof x==='string'&&x.trim()))];
+ const images=[...new Set([...list,c?.portraitUrl,c?.originalImageUrl].filter(x=>typeof x==='string'&&x.trim()))];
+ if(c){c.images=images;delete c.portraitUrl;delete c.originalImageUrl;}
+ return images;
 }
 function effectiveImage(c){return effectiveImages(c)[0]||''}
 let imageIndexes={};
@@ -368,7 +384,7 @@ function cancelEditor(){editorDirty=false;editorSaving=false;discardingEditorCha
 function bindEditorDirtyTracking(){const host=$('modalContent');if(!host||host.dataset.dirtyTracking==='1')return;host.dataset.dirtyTracking='1';const mark=e=>{if($('f_name')&&e.target.closest('#modalContent'))editorDirty=true};host.addEventListener('input',mark);host.addEventListener('change',mark)}
 window.addEventListener('beforeunload',e=>{if(editorDirty&&!editorSaving&&!discardingEditorChanges){e.preventDefault();e.returnValue=''}});
 function navigateToGallery(){const target=new URL(location.href);target.pathname=target.pathname.replace(/character\.html$/,'index.html');target.searchParams.delete('page');target.searchParams.delete('id');target.hash='';if(document.referrer&&new URL(document.referrer).origin===location.origin&&/index\.html$/.test(new URL(document.referrer).pathname)){history.back();return}location.replace(target.pathname+target.search+target.hash)}
-function isYouTubeUrl(value){try{const u=new URL(String(value||'').trim());return /^https?:$/.test(u.protocol)&&(/(^|\.)youtube\.com$/i.test(u.hostname)||/^youtu\.be$/i.test(u.hostname))&&(!!(u.searchParams.get('v'))||/^\/(shorts|embed|live)\//i.test(u.pathname)||u.hostname==='youtu.be')}catch{return false}}
+function isYouTubeUrl(value){try{const u=new URL(String(value||'').trim());const host=u.hostname.toLowerCase().replace(/^www\./,'').replace(/^m\./,'');return /^https?:$/.test(u.protocol)&&(host==='youtube.com'||host.endsWith('.youtube.com')||host==='youtu.be')&&(!!u.searchParams.get('v')||/^\/(shorts|embed|live)\//i.test(u.pathname)||host==='youtu.be')}catch{return false}}
 function getYouTubeVideoId(value){try{const u=new URL(String(value||'').trim());if(/^youtu\.be$/i.test(u.hostname))return u.pathname.split('/').filter(Boolean)[0]||'';return u.searchParams.get('v')||u.pathname.match(/^\/(?:shorts|embed|live)\/([^/?]+)/i)?.[1]||''}catch{return ''}}
 function normalizeDocumentLinks(value){return (Array.isArray(value)?value:[]).map(item=>typeof item==='string'?{url:item,name:''}:{url:String(item?.url||item?.link||''),name:String(item?.name||item?.title||'')}).filter(item=>item.url.trim())}
 function renderDocumentLinkRows(value){const rows=(Array.isArray(value)?value:[]).map(item=>{const name=typeof item==='string'?'':String(item?.name||item?.title||'');return typeof item==='string'?{url:item,name:''}:{url:String(item?.url||item?.link||''),name:/^(Google 文件|Google 試算表|Google Drive 文件)$/i.test(name.trim())?'':name}});if(!rows.length)rows.push({url:'',name:''});return rows.map((item,i)=>`<div class="document-link-row"><input class="document-url" type="url" data-index="${i}" value="${esc(item.url)}" placeholder="貼上 Google 文件或 YouTube 連結" onblur="resolveDocumentName(this)"><input class="document-name" type="text" data-index="${i}" value="${esc(item.name)}" placeholder="文件名稱（可自訂）" aria-label="文件名稱"><button class="danger document-remove" type="button" onclick="removeDocumentLinkRow(${i})" title="移除此連結">移除</button>${i===rows.length-1?`<button class="secondary document-add" type="button" onclick="addDocumentLinkRow()" title="新增連結欄位">＋</button>`:''}</div>`).join('')}
@@ -404,7 +420,7 @@ function openEditor(id){
   return;
  }
  editingId=id||null;editorDirty=false;editorSaving=false;discardingEditorChanges=false;
- const c=(id?characters.find(x=>x.id===id):null)||{name:'',alias:'',work:'',type:'自訂角色',system:'',occupation:'',age:'',gender:'',player:'',nationality:'',birthplace:'',residence:'',portraitUrl:'',originalImageUrl:'',images:[],sourceUrl:'',documentLinks:[],description:'',backstory:'',personality:'',beliefs:'',importantPeople:'',importantPlaces:'',specialAbilities:'',injuries:'',possessions:'',items:'',phobias:'',tags:[],favorite:false,notes:'',attributes:{},skills:{}};
+ const c=(id?characters.find(x=>x.id===id):null)||{name:'',alias:'',work:'',type:'自訂角色',system:'',occupation:'',age:'',gender:'',player:'',nationality:'',birthplace:'',residence:'',images:[],sourceUrl:'',documentLinks:[],description:'',backstory:'',personality:'',beliefs:'',importantPeople:'',importantPlaces:'',specialAbilities:'',injuries:'',possessions:'',items:'',phobias:'',tags:[],favorite:false,notes:'',attributes:{},skills:{}};
  window._editingImages=effectiveImages(c).slice();
  openModal('角色頁面',`
  <section class="image-editor-panel"><div class="image-editor-heading"><div><strong>角色圖片</strong><div class="image-help">上方一次顯示一張；可左右滑動或按箭頭切換，最多 10 張。</div></div></div><div id="imageManager" class="image-manager"></div><div class="image-upload-row"><label class="image-upload-button secondary" for="f_imageFiles">＋ 上傳圖片（可多選）</label><input class="hidden" id="f_imageFiles" type="file" accept="image/*" multiple onchange="handleImageFiles(this.files)"></div></section>
@@ -432,21 +448,31 @@ function openEditor(id){
  <div class="field full"><label>私人備註</label><textarea id="f_notes">${esc(c.notes)}</textarea><small>備註會隨角色資料一起保存。</small></div>
  <div class="field full"><label><input type="checkbox" id="f_favorite" ${c.favorite?'checked':''} style="width:auto"> 加入收藏</label></div>
  </div>
- <div class="modal-actions"><div>${id?`<button class="danger" onclick="deleteCharacter('${id}')">刪除角色</button>`:''}</div><div class="right"><button class="secondary" onclick="cancelEditor()">取消</button><button class="primary" onclick="saveCharacter()">儲存角色</button></div></div>`);
+ <div class="modal-actions"><div>${id?`<button class="danger" onclick="deleteCharacter('${id}')">刪除角色</button>`:''}</div><div class="right"><button class="secondary" onclick="cancelEditor()">取消</button><button class="primary" id="saveCharacterBtn" onclick="saveCharacter()">儲存角色</button></div></div>`);
  renderImageManager();
  bindEditorDirtyTracking();
 }
 async function saveCharacter(){
- const val=id=>document.getElementById('f_'+id)?.value||'';
- const name=val('name').trim();if(!name){toast('請先填寫角色名稱');$('f_name').focus();return}
+ // 防止連點、Enter 事件或重複事件監聽同時觸發多筆新增。
+ if(editorSaving)return;
  editorSaving=true;
- const linkRows=Array.from(document.querySelectorAll('#documentLinkList .document-link-row'));
- await Promise.all(linkRows.map(row=>resolveDocumentName(row.querySelector('.document-url'),{silent:true})));
+ const saveButton=document.getElementById('saveCharacterBtn');
+ if(saveButton){saveButton.disabled=true;saveButton.textContent='正在儲存…';saveButton.setAttribute('aria-busy','true')}
+ const releaseSaveButton=()=>{editorSaving=false;if(saveButton){saveButton.disabled=false;saveButton.textContent='儲存角色';saveButton.removeAttribute('aria-busy')}};
+ const val=id=>document.getElementById('f_'+id)?.value||'';
+ const name=val('name').trim();if(!name){releaseSaveButton();toast('請先填寫角色名稱');$('f_name').focus();return}
+ // 不在儲存流程中等待外部文件標題查詢；連結名稱可在離開欄位時自動讀取。
  const old=editingId?characters.find(x=>x.id===editingId):null;
- const editedImages=(window._editingImages||[]).slice();
- const c={...(old||{}),id:old?.id||('CHR-'+Date.now().toString().slice(-8)),name,alias:old?.alias||'',occupation:val('occupation'),system:val('system'),type:old?.type||'自訂角色',work:old?.work||'',age:val('age'),gender:val('gender'),player:val('player'),nationality:old?.nationality||'',birthplace:val('birthplace'),residence:val('residence'),items:val('items'),sourceUrl:val('sourceUrl'),documentLinks:collectDocumentLinks(),portraitUrl:editedImages.includes(old?.portraitUrl)?old.portraitUrl:(editedImages[0]||''),originalImageUrl:editedImages.includes(old?.originalImageUrl)?old.originalImageUrl:(editedImages[0]||''),images:editedImages,tags:val('tags').split(/[,，、]/).map(x=>x.trim()).filter(Boolean),description:val('description'),backstory:val('backstory'),personality:val('personality'),beliefs:val('beliefs'),importantPeople:val('importantPeople'),importantPlaces:val('importantPlaces'),specialAbilities:old?.specialAbilities||'',injuries:val('injuries'),possessions:val('possessions'),phobias:val('phobias'),notes:val('notes'),favorite:$('f_favorite').checked,attributes:old?.attributes||window._pendingFetchedCharacter?.attributes||{},skills:old?.skills||window._pendingFetchedCharacter?.skills||{},rawCharacter:(()=>{const t=val('rawCharacter').trim();if(t){try{return JSON.parse(t)}catch(e){toast('完整原始資料不是有效 JSON，已保留原本資料');return old?.rawCharacter||window._pendingFetchedCharacter?.rawCharacter||null}}return old?.rawCharacter||window._pendingFetchedCharacter?.rawCharacter||null})(),rawSourceCells:old?.rawSourceCells||window._pendingFetchedCharacter?.rawSourceCells||null,createdAt:old?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+ const rawEditedImages=(window._editingImages||[]).slice();
+ const editedImages=rawEditedImages.filter((image,index,list)=>image&&list.indexOf(image)===index);
+ const c={...(old||{}),id:old?.id||('CHR-'+Date.now().toString().slice(-8)),name,alias:old?.alias||'',occupation:val('occupation'),system:val('system'),type:old?.type||'自訂角色',work:old?.work||'',age:val('age'),gender:val('gender'),player:val('player'),nationality:old?.nationality||'',birthplace:val('birthplace'),residence:val('residence'),items:val('items'),sourceUrl:val('sourceUrl'),documentLinks:collectDocumentLinks(),images:[...new Set(editedImages.filter(image=>typeof image==='string'&&image.trim()))],tags:val('tags').split(/[,，、]/).map(x=>x.trim()).filter(Boolean),description:val('description'),backstory:val('backstory'),personality:val('personality'),beliefs:val('beliefs'),importantPeople:val('importantPeople'),importantPlaces:val('importantPlaces'),specialAbilities:old?.specialAbilities||'',injuries:val('injuries'),possessions:val('possessions'),phobias:val('phobias'),notes:val('notes'),favorite:$('f_favorite').checked,attributes:old?.attributes||window._pendingFetchedCharacter?.attributes||{},skills:old?.skills||window._pendingFetchedCharacter?.skills||{},rawCharacter:(()=>{const t=val('rawCharacter').trim();if(t){try{return JSON.parse(t)}catch(e){toast('完整原始資料不是有效 JSON，已保留原本資料');return old?.rawCharacter||window._pendingFetchedCharacter?.rawCharacter||null}}return old?.rawCharacter||window._pendingFetchedCharacter?.rawCharacter||null})(),rawSourceCells:old?.rawSourceCells||window._pendingFetchedCharacter?.rawSourceCells||null,createdAt:old?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
  if(old){characters=characters.map(x=>x.id===old.id?c:x)}else{characters.unshift(c)}
- saveLocal();window._pendingFetchedCharacter=null;if(isEditorPage){const savedMessage=old?'角色已更新並同步至 Google Sheets':'角色已新增並同步至 Google Sheets';toast(savedMessage);const syncPromise=syncIfConfigured('upsert',c);syncPromise.then(result=>{editorSaving=false;if(result?.ok){editorDirty=false;discardingEditorChanges=true;const finishNavigation=()=>{if(window.opener&&!window.opener.closed){window.close();setTimeout(()=>{if(!window.closed)navigateToGallery()},150)}else navigateToGallery()};if(result.warning){toast(result.warning);setTimeout(finishNavigation,3000)}else finishNavigation()}else{toast('角色文字未寫入 Google 試算表；請保留此頁，並依「雲端同步失敗」訊息檢查原因。')}});}else{closeModal();render();toast(old?'角色已更新':'角色已新增');syncIfConfigured('upsert',c);}
+ saveLocal();window._pendingFetchedCharacter=null;
+ toast('正在儲存角色資料，請稍候…');
+ syncIfConfigured('upsert',c).then(result=>{
+  if(result?.ok){editorDirty=false;discardingEditorChanges=true;const finishNavigation=()=>{if(window.opener&&!window.opener.closed){window.close();setTimeout(()=>{if(!window.closed)navigateToGallery()},150)}else navigateToGallery()};if(result.warning){toast(result.warning);setTimeout(finishNavigation,1800)}else finishNavigation()}
+  else{if(!old)editingId=c.id;releaseSaveButton();toast('角色文字未寫入 Google 試算表；資料仍保留在本頁，請確認雲端連線後再試。')}
+ }).catch(error=>{if(!old)editingId=c.id;releaseSaveButton();toast('儲存失敗：'+(error?.message||String(error)))});
 }
 async function deleteCharacter(id){
  if(!confirm('確定要刪除這張角色卡？角色專屬且未被其他角色使用的 Google Drive 圖片也會一併刪除。此操作無法復原。'))return;
@@ -563,7 +589,7 @@ function importFile(file){
     else{
      const idx=(...names)=>header.findIndex(h=>names.some(n=>h===n||h.includes(n)));
      const ni=idx('name','角色','姓名'),oi=idx('occupation','職業','職位'),ai=idx('age','年齡'),gi=idx('gender','性別'),si=idx('system','系統'),di=idx('description','簡介','背景'),pi=idx('portrait_url','image','img','圖片','封面');
-     if(ni>=0){added=rows.slice(1).filter(r=>r[ni]).map((r,i)=>normalizeImported({name:r[ni],occupation:oi>=0?r[oi]:'',age:ai>=0?r[ai]:'',gender:gi>=0?r[gi]:'',system:si>=0?r[si]:'',description:di>=0?r[di]:'',originalImageUrl:pi>=0?r[pi]:''},i))}
+     if(ni>=0){added=rows.slice(1).filter(r=>r[ni]).map((r,i)=>normalizeImported({name:r[ni],occupation:oi>=0?r[oi]:'',age:ai>=0?r[ai]:'',gender:gi>=0?r[gi]:'',system:si>=0?r[si]:'',description:di>=0?r[di]:'',images:pi>=0&&r[pi]?[r[pi]]:[]},i))}
      else throw new Error('這份 CSV 不是可辨識的角色卡格式，請確認檔案內容。');
     }
    }
@@ -571,7 +597,7 @@ function importFile(file){
   }catch(e){toast('匯入失敗：請確認檔案是有效的 CSV 或 JSON')}
  };reader.readAsText(file,'UTF-8');
 }
-function normalizeImported(x,i){return {...{id:'CHR-'+Date.now().toString().slice(-7)+i,name:'未命名角色',alias:'',work:'',type:'自訂角色',system:'',occupation:'',age:'',gender:'',player:'',nationality:'',portraitUrl:'',originalImageUrl:'',sourceUrl:'',description:'',backstory:'',personality:'',beliefs:'',importantPeople:'',importantPlaces:'',specialAbilities:'',injuries:'',possessions:'',phobias:'',attributes:{},skills:{},tags:[],favorite:false,notes:'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()},...x,id:x.id||('CHR-'+Date.now().toString().slice(-7)+i),tags:Array.isArray(x.tags)?x.tags:String(x.tags||'').split(/[,，、]/).map(t=>t.trim()).filter(Boolean)}}
+function normalizeImported(x,i){const value={...{id:'CHR-'+Date.now().toString().slice(-7)+i,name:'未命名角色',alias:'',work:'',type:'自訂角色',system:'',occupation:'',age:'',gender:'',player:'',nationality:'',images:[],sourceUrl:'',description:'',backstory:'',personality:'',beliefs:'',importantPeople:'',importantPlaces:'',specialAbilities:'',injuries:'',possessions:'',phobias:'',attributes:{},skills:{},tags:[],favorite:false,notes:'',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()},...x,id:x.id||('CHR-'+Date.now().toString().slice(-7)+i),tags:Array.isArray(x.tags)?x.tags:String(x.tags||'').split(/[,，、]/).map(t=>t.trim()).filter(Boolean)};value.images=[...new Set([...(Array.isArray(value.images)?value.images:[]),value.portraitUrl,value.originalImageUrl].filter(v=>typeof v==='string'&&v.trim()))];delete value.portraitUrl;delete value.originalImageUrl;return value}
 function setCurrentFilter(filter){
  currentFilter=filter||'all';
  document.querySelectorAll('#filters .chip').forEach(x=>x.classList.toggle('active',x.dataset.filter===currentFilter));

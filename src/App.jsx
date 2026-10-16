@@ -2,10 +2,18 @@ import { useEffect, useState } from 'react'
 import { listCharacters, resolveDriveImage, getDriveFileInfo, signInWithGoogle, signOutGoogle, syncCharacters } from './lib/googleDrive'
 
 export default function App() {
-  const [profile, setProfile] = useState(null)
+  // 在首次 React render 前同步恢復上次帳號，避免先閃現登入畫面再切回角色清單。
+  const [profile, setProfile] = useState(() => {
+    try {
+      const email = localStorage.getItem('ccr_google_account_email') || ''
+      return email ? { email } : null
+    } catch { return null }
+  })
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
-  const [restoringSession, setRestoringSession] = useState(true)
+  const [restoringSession, setRestoringSession] = useState(() => {
+    try { return Boolean(localStorage.getItem('ccr_google_account_email')) } catch { return false }
+  })
   const [legacyRoute, setLegacyRoute] = useState(() => {
     try {
       const saved = localStorage.getItem('ccr_legacy_route') || 'index.html'
